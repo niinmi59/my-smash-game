@@ -2,24 +2,20 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>Ultimate Smash Online v13</title>
+    <title>Ultimate Smash Online v14</title>
     <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
     <style>
         body { margin: 0; overflow: hidden; background: #111; font-family: 'Segoe UI', sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; color: white; }
         canvas { display: none; width: 100%; height: 100%; background: linear-gradient(to bottom, #87CEEB 0%, #E0F7FA 100%); }
-        
         .overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; background: rgba(0,0,0,0.95); z-index: 100; }
         h1 { font-size: 40px; text-shadow: 0 0 10px #ff0055; margin-bottom: 20px; font-style: italic; }
         .box { background: #222; padding: 20px; border-radius: 10px; border: 2px solid #555; text-align: center; max-width: 500px; width: 90%; }
-        
         input { padding: 10px; font-size: 18px; width: 70%; text-align: center; margin-bottom: 10px; border-radius: 5px; border: none; }
         button { padding: 10px 20px; font-size: 18px; cursor: pointer; background: #ffe600; border: none; font-weight: bold; margin-top: 10px; border-radius: 5px; }
-        
         .char-select { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-top: 20px; }
         .card { width: 90px; padding: 5px; background: #333; border: 2px solid #555; border-radius: 5px; cursor: pointer; }
         .card.selected { border-color: #ffe600; background: #555; }
         .icon { width: 40px; height: 40px; border-radius: 50%; margin: 0 auto 5px; border: 3px solid #fff; }
-        
         #hud { position: absolute; bottom: 20px; width: 100%; display: none; justify-content: center; gap: 60px; pointer-events: none; }
         .hud-box { text-align: center; background: rgba(0,0,0,0.6); padding: 10px 20px; border-radius: 10px; min-width: 150px; }
         .hud-name { font-size: 14px; font-weight: bold; color: #ccc; margin-bottom: 5px; }
@@ -35,14 +31,12 @@
 <body>
 
 <div id="menu" class="overlay">
-    <h1>SMASH ONLINE v13</h1>
-    
+    <h1>SMASH ONLINE v14</h1>
     <div id="step0" class="box">
         <h3>プレイヤー名を入力</h3>
         <input type="text" id="username-input" placeholder="名前 (例: プレイヤー1)" maxlength="10">
         <button onclick="setName()">決定</button>
     </div>
-
     <div id="step1" class="box" style="display:none;">
         <h3 id="welcome-msg"></h3>
         <p>ファイター選択</p>
@@ -55,7 +49,6 @@
         </div>
         <button onclick="goToStep2()" style="margin-top:20px;">次へ</button>
     </div>
-
     <div id="step2" class="box" style="display:none;">
         <h3>通信対戦</h3>
         <p style="font-size:12px; color:#ccc;">IDを教え合って接続してください</p>
@@ -105,7 +98,6 @@ const CHARS={
     noda:{name:"のだ",col:"#800080",type:"tnk",speed:0.7,weight:1.6}
 };
 
-// NET & GAME STATE
 let peer=null, conn=null, myId=null, isHost=false, gameRunning=false;
 let myName="Player", oppName="Opponent";
 let myChar='kou', oppChar='kou';
@@ -117,18 +109,10 @@ const keys={};
 window.onkeydown=e=>{ keys[e.key.toLowerCase()]=true; };
 window.onkeyup=e=>{ keys[e.key.toLowerCase()]=false; };
 
-// --- MENU FUNCTIONS ---
-function setName() {
-    const n = document.getElementById('username-input').value;
-    if(n) myName = n;
-    document.getElementById('step0').style.display='none';
-    document.getElementById('step1').style.display='block';
-    document.getElementById('welcome-msg').innerText = "ようこそ、" + myName + "さん";
-}
+function setName() { const n = document.getElementById('username-input').value; if(n) myName=n; document.getElementById('step0').style.display='none'; document.getElementById('step1').style.display='block'; document.getElementById('welcome-msg').innerText="ようこそ、"+myName+"さん"; }
 function sel(k,e) { myChar=k; document.querySelectorAll('.card').forEach(c=>c.classList.remove('selected')); e.classList.add('selected'); }
 function goToStep2() { document.getElementById('step1').style.display='none'; document.getElementById('step2').style.display='block'; initPeer(); }
 
-// --- NETWORK ---
 function initPeer() {
     peer = new Peer();
     peer.on('open', id => myId = id);
@@ -136,38 +120,25 @@ function initPeer() {
 }
 function createRoom() {
     if(!peer) initPeer();
-    setTimeout(() => {
-        document.getElementById('my-id-display').innerText = myId;
-        document.getElementById('status-msg').innerText = "待機中...";
-        isHost = true;
-    }, 1000);
+    setTimeout(() => { document.getElementById('my-id-display').innerText=myId; document.getElementById('status-msg').innerText="待機中..."; isHost=true; }, 1000);
 }
 function joinRoom() {
     if(!peer) initPeer();
     setTimeout(() => {
-        const id = document.getElementById('dest-id').value;
-        if(!id) return alert("IDを入力してください");
-        conn = peer.connect(id);
-        isHost = false;
-        setupConn();
+        const id=document.getElementById('dest-id').value; if(!id) return alert("IDを入力してください");
+        conn = peer.connect(id); isHost=false; setupConn();
     }, 500);
 }
 function setupConn() {
-    document.getElementById('status-msg').innerText = "接続成功！データ交換中...";
-    conn.on('open', () => {
-        // Send initial data: name and char
-        conn.send({ type: 'init', name: myName, char: myChar });
-    });
+    document.getElementById('status-msg').innerText="接続成功！";
+    conn.on('open', () => { conn.send({ type:'init', name:myName, char:myChar }); });
     conn.on('data', data => {
-        if(data.type === 'init') {
-            oppName = data.name;
-            oppChar = data.char;
-            startGame();
-        }
-        if(data.type === 'sync') {
-            // Apply Remote Data
+        if(data.type==='init') { oppName=data.name; oppChar=data.char; startGame(); }
+        if(data.type==='sync') {
+            // Apply Sync Data with Smoothing
             let target = isHost ? p2 : p1;
-            target.pos = data.pos;
+            // Interpolate position for smoothness
+            target.targetPos = data.pos;
             target.vel = data.vel;
             target.pct = data.pct;
             target.stocks = data.stocks;
@@ -177,36 +148,45 @@ function setupConn() {
             target.faceR = data.fr;
             target.nodaPowered = data.np;
             target.shieldBroken = data.sb;
-            target.anim = data.anim; // Sync animation frame
-            
-            // Sync Effects (optional for visual flair)
+            // Effects
             if(data.fx) spawnFX(data.fx.x, data.fx.y, data.fx.type);
         }
+        if(data.type==='hit') {
+            // I got hit!
+            let me = isHost ? p1 : p2;
+            me.applyHit(data.dmg, data.kb, data.dir, data.stun, true); // true = forced
+        }
     });
+    // Start Sync Loop
+    setInterval(sendSync, 33); // 30 FPS Sync
+}
+
+function sendSync() {
+    if(conn && conn.open && gameRunning) {
+        let me = isHost ? p1 : p2;
+        conn.send({
+            type:'sync',
+            pos: me.pos, vel: me.vel, pct: me.pct, stocks: me.stocks,
+            shp: me.shieldHP, chg: me.charge, act: me.act, fr: me.faceR,
+            np: me.nodaPowered, sb: me.shieldBroken
+        });
+    }
 }
 
 function startGame() {
-    document.getElementById('menu').style.display='none';
-    document.getElementById('hud').style.display='flex';
-    cvs.style.display='block';
-    
-    // P1 is Host, P2 is Guest
+    document.getElementById('menu').style.display='none'; document.getElementById('hud').style.display='flex'; cvs.style.display='block';
     p1 = new Fighter(true, isHost?myChar:oppChar, -300); p1.isMe = isHost; p1.displayName = isHost?myName:oppName;
     p2 = new Fighter(false, isHost?oppChar:myChar, 300); p2.isMe = !isHost; p2.displayName = isHost?oppName:myName;
-    
-    // HUD Names
-    document.getElementById('p1n').innerText = p1.displayName;
-    document.getElementById('p2n').innerText = p2.displayName;
-
+    document.getElementById('p1n').innerText = p1.displayName; document.getElementById('p2n').innerText = p2.displayName;
     gameRunning=true; loop();
 }
 
-// --- GAME LOGIC ---
 class Fighter {
     constructor(isP1, key, x) {
         this.isP1 = isP1; this.key = key; 
         this.col = CHARS[key].col; this.weight = CHARS[key].weight; this.speed = CHARS[key].speed;
         this.pos = {x:x, y:-300}; this.vel = {x:0, y:0};
+        this.targetPos = {x:x, y:-300}; // For sync smoothing
         this.pct = 0; this.stocks = 3; this.faceR = isP1;
         this.act = 'IDLE'; this.actTime = 0; this.stun = 0; this.anim = 0;
         this.charge = 0; this.maxCharge = 120;
@@ -216,11 +196,19 @@ class Fighter {
         this.prevJ = false; this.prevK = false;
     }
 
-    update() {
-        if(!this.isMe) return; // Remote players do NOT run update logic, only sync
+    update(opp) {
         if(this.stocks <= 0) return;
 
-        // --- LOCAL LOGIC (Only runs for ME) ---
+        // --- REMOTE PLAYER LOGIC (Interpolation) ---
+        if(!this.isMe) {
+            this.anim++;
+            // Smooth movement towards target
+            this.pos.x += (this.targetPos.x - this.pos.x) * 0.5;
+            this.pos.y += (this.targetPos.y - this.pos.y) * 0.5;
+            return; 
+        }
+
+        // --- LOCAL PLAYER LOGIC ---
         if(this.shieldBroken) {
             this.shieldBreakTimer--;
             if(this.shieldBreakTimer<=0){ this.shieldBroken=false; this.shieldHP=50; }
@@ -241,7 +229,6 @@ class Fighter {
         if(inX!==0) this.faceR = inX>0;
         this.ignorePlat = drop; if(drop && !this.onG) this.vel.y += 1.0;
 
-        // State Machine
         if (grd && this.onG && this.act !== 'ATK' && !this.shieldBroken) {
             this.act = 'GRD'; this.vel.x *= 0.5; this.counterActive = (this.key === 'kanade');
         } else {
@@ -276,7 +263,7 @@ class Fighter {
             if (jmp && this.jumps>0 && !this.prevJmp) {
                 this.vel.y = -16; this.jumps--; this.onG=false; spawnFX(this.pos.x, this.pos.y+40, 'dust');
             }
-            this.prevJmp = jmp;
+            this.prevJmp = jmp; // Local only logic
 
             if (smsh) {
                 if(this.key === 'shiyou') this.fireSniper(); else this.doSmash();
@@ -342,22 +329,40 @@ class Fighter {
     createHitbox(ox, oy, w, h, dmg, kb, stun) { const dir=this.faceR?1:-1; this.hitbox = { act:true, owner:this, x:this.pos.x+(ox*dir), y:this.pos.y+oy, w:w, h:h, dmg:dmg, kb:kb, stun:stun, dur:5, dir:dir }; }
     
     checkHit(hb) {
-        if(!this.isMe) return; // Only process hit if I am the target locally
+        if(!this.isMe) return; // I check collisions for ME against Remote Attacks
+        // ...Wait, hitting remote players?
+        // Authoritative logic: Attacker detects hit -> Sends "Hit" -> Victim applies.
+        // So this function is called when *I* hit *THEM* (opp).
+        
+        // No, checkHit is called in loop() when hitboxes overlap.
+        // We need to know WHO is getting hit.
+        
+        // Case 1: My Attack hits Opponent.
+        // I send 'hit' data. I do NOT apply physics to them (they do it upon receipt).
+        if(this.act === 'GRD') return; // Guard logic handled on receiver side for sync? 
+        // Actually, easiest is: Attacker says "I hit you", Victim says "Ouch".
+        
+        // Since checkHit is called by owner of hitbox...
+        // Let's change the loop logic to handle this clearly.
+    }
+
+    applyHit(dmg, kb, dir, stun, forced) {
+        if(!this.isMe && !forced) return; // Only apply if forced by network
+        
         if(this.act === 'GRD') {
-            if(this.key === 'kanade' && this.counterActive) { this.act = 'ATK'; this.actTime = 20; spawnFX(this.pos.x, this.pos.y, 'fire'); return; }
-            this.shieldHP -= hb.dmg * 2;
+            if(this.key === 'kanade' && this.counterActive) { this.act='ATK'; this.actTime=20; spawnFX(this.pos.x, this.pos.y, 'fire'); return; }
+            this.shieldHP -= dmg * 2;
             if (this.shieldHP <= 0) { this.shieldBroken = true; this.shieldBreakTimer = 600; this.stun = 120; spawnFX(this.pos.x, this.pos.y, 'expl'); } 
-            else { this.pct += hb.dmg * 0.05; spawnFX(this.pos.x, this.pos.y, 'dust'); }
+            else { this.pct += dmg * 0.05; spawnFX(this.pos.x, this.pos.y, 'dust'); }
             return;
         }
-        this.applyHit(hb);
-    }
-    applyHit(hb) {
-        this.pct += hb.dmg; let kbVal = 0;
-        if (this.pct < 100) kbVal = (hb.kb * 0.1) / this.weight; else { let factor = (this.pct - 90) / 10; kbVal = (hb.kb * factor) / this.weight; }
-        this.vel.x = hb.dir * kbVal * 2; this.vel.y = -kbVal * 1.5; this.stun = hb.stun + kbVal; spawnFX(this.pos.x, this.pos.y, 'hit', kbVal>10);
+
+        this.pct += dmg; let kbVal = 0;
+        if (this.pct < 100) kbVal = (kb * 0.1) / this.weight; else { let factor = (this.pct - 90) / 10; kbVal = (kb * factor) / this.weight; }
+        this.vel.x = dir * kbVal * 2; this.vel.y = -kbVal * 1.5; this.stun = stun + kbVal; spawnFX(this.pos.x, this.pos.y, 'hit', kbVal>10);
         this.updateHUD();
     }
+
     checkBlast() {
         if(!this.isMe) return;
         if(Math.abs(this.pos.x)>BLAST.x || Math.abs(this.pos.y)>BLAST.y) {
@@ -383,11 +388,7 @@ class Fighter {
         if(this.stocks<=0) return;
         ctx.save(); ctx.translate(this.pos.x, this.pos.y); if(!this.faceR) ctx.scale(-1,1);
         
-        // Name Tag
-        ctx.save(); ctx.scale(this.faceR?1:-1, 1);
-        ctx.fillStyle="white"; ctx.font="bold 16px Arial"; ctx.textAlign="center";
-        ctx.fillText(this.displayName, 0, -60);
-        ctx.restore();
+        ctx.save(); ctx.scale(this.faceR?1:-1, 1); ctx.fillStyle="white"; ctx.font="bold 16px Arial"; ctx.textAlign="center"; ctx.fillText(this.displayName, 0, -60); ctx.restore();
 
         const bob = this.onG ? Math.sin(this.anim*0.2)*2 : 0; ctx.translate(0, bob);
         let dC=this.col; if(this.key==='noda'&&this.nodaPowered&&Math.floor(this.anim/4)%2===0) dC="#ff00ff";
@@ -414,21 +415,10 @@ class Projectile {
     update() {
         this.x+=this.vx; this.y+=this.vy; this.life--; 
         let hb={x:this.x-this.sz, y:this.y-this.sz, w:this.sz*2, h:this.sz*2}; 
-        // Logic: if p1 is Me, check if I am hit by p2 projectile.
-        // NOTE: In strict sync, owner detects hit on enemy.
-        // If I created this projectile (this.o === p1 and p1.isMe), I check if it hits p2.
-        if(this.o.isMe) {
+        if(this.o.isMe) { // I own projectile
             let target = this.o === p1 ? p2 : p1;
             if(isHit(hb, target)) {
                 let kb=this.type==='sniper'?15:(this.type==='beam'?5:8);
-                // Apply hit to target via sync (locally predict for sound, but master logic is sender)
-                // Actually, simplest is: Sender detects hit -> Sends "Hit" event? 
-                // For v13, let's just use syncing Position/HP.
-                // Sender updates target HP locally -> next sync sends updated target HP? No, p2 syncs p2 state.
-                // FIX: Sender sends a specific "I hit you" event or updates remote state?
-                // EASIEST: Remote Projectiles are visual only. Local projectiles hit Local opponent representation?
-                // NO, syncing is complex. 
-                // V13 Strategy: I detect hit on YOU. I tell YOU "You got hit".
                 conn.send({type:'hit', dmg:this.dmg, kb:kb, dir:this.vx>0?1:-1, stun:20});
                 this.life=0;
             }
@@ -443,19 +433,18 @@ function isHit(r1, t) { return (r1.x < t.pos.x+20 && r1.x+r1.w > t.pos.x-20 && r
 function loop() {
     if(!gameRunning) return; requestAnimationFrame(loop);
     
-    // ME Update
     let me = isHost ? p1 : p2;
     let opp = isHost ? p2 : p1;
     me.update(opp);
-    
-    // Opponent Animation Update
     opp.anim++;
-    opp.updateHUD(); // Show remote HUD
+    
+    // Smooth Opponent Pos
+    opp.pos.x += (opp.targetPos.x - opp.pos.x) * 0.5;
+    opp.pos.y += (opp.targetPos.y - opp.pos.y) * 0.5;
+    opp.updateHUD();
 
-    // Check Hitboxes (Me attacking Opp)
     if(me.hitbox && me.hitbox.act) {
         if(isHit(me.hitbox, opp)) {
-            // I hit opponent. I calculate dmg/kb and send "HIT" command.
             let h = me.hitbox;
             conn.send({type:'hit', dmg:h.dmg, kb:h.kb, dir:h.dir, stun:h.stun});
             me.hitbox.act=false;
@@ -463,35 +452,16 @@ function loop() {
         me.hitbox.dur--; if(me.hitbox.dur<=0) me.hitbox.act=false;
     }
 
-    // Sync Send (Send MY state to Opp)
-    if(conn && conn.open) {
-        conn.send({
-            type:'sync',
-            pos:me.pos, vel:me.vel, pct:me.pct, stocks:me.stocks,
-            shp:me.shieldHP, chg:me.charge, act:me.act, fr:me.faceR,
-            np:me.nodaPowered, sb:me.shieldBroken, anim:me.anim
-        });
-    }
-
-    // Draw
     ctx.fillStyle='#87CEEB'; ctx.fillRect(0,0,cvs.width,cvs.height);
     let dx=Math.abs(p1.pos.x-p2.pos.x), ty=Math.min(p1.pos.y, p2.pos.y), tz=Math.max(0.4, Math.min(1.0, 1500/(dx+500)));
     cam.z+=(tz-cam.z)*0.1; cam.x+=(((p1.pos.x+p2.pos.x)/2)-cam.x)*0.1; cam.y+=(ty-cam.y)*0.1;
-    
     ctx.save(); ctx.translate(cvs.width/2, cvs.height/2); ctx.scale(cam.z, cam.z); ctx.translate(-cam.x, -cam.y+150);
     ctx.fillStyle='#5d4037'; ctx.fillRect(-1200, 250, 2400, 500); ctx.fillStyle='#76ff03'; ctx.fillRect(-1200, 250, 2400, 20); ctx.fillStyle='#8d6e63'; PLATFORMS.forEach(p=>ctx.fillRect(p.x-p.w/2, p.y-p.h/2, p.w, p.h));
-    
     p1.draw(); p2.draw();
     projectiles.forEach((p,i)=>{ p.update(); p.draw(); if(p.life<=0) projectiles.splice(i,1); });
     particles.forEach((p,i)=>{ p.x+=p.vx; p.y+=p.vy; p.life-=0.05; ctx.globalAlpha=p.life; ctx.fillStyle=p.col; ctx.beginPath(); ctx.arc(p.x,p.y,5,0,Math.PI*2); ctx.fill(); if(p.life<=0) particles.splice(i,1); });
-    
     ctx.restore();
 }
-
-// Special Handler for receiving "Hit" event
-// (Inside conn.on('data') in setupConn)
-// Added above in setupConn logic
-
 function endGame(win) { gameRunning=false; alert(win); location.reload(); }
 </script>
 </body>
