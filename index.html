@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>Ultimate Smash Online v16</title>
+    <title>Ultimate Smash Online v18</title>
     <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
     <style>
         body { margin: 0; overflow: hidden; background: #111; font-family: 'Segoe UI', sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; color: white; user-select: none; }
@@ -32,7 +32,7 @@
         .stocks { display: flex; justify-content: center; gap: 4px; margin-top: 5px; }
         .dot { width: 10px; height: 10px; border-radius: 50%; border: 2px solid #fff; }
 
-        #result { display: none; background: rgba(0,0,0,0.85); }
+        #result { display: none; background: rgba(0,0,0,0.85); flex-direction: column; justify-content: center; align-items: center; position: absolute; top:0; left:0; width:100%; height:100%; z-index:200; }
         #win-msg { font-size: 80px; font-weight: 900; font-style: italic; margin-bottom: 30px; text-shadow: 0 0 20px #fff; }
         .rematch-status { display: flex; gap: 20px; margin-bottom: 20px; font-size: 20px; }
         .p-status { color: #555; font-weight: bold; }
@@ -42,7 +42,7 @@
 <body>
 
 <div id="menu" class="overlay">
-    <h1>SMASH ONLINE v16</h1>
+    <h1>SMASH ONLINE v18</h1>
     <div id="step0" class="box">
         <h3>プレイヤー名を入力</h3>
         <input type="text" id="username-input" placeholder="名前 (例: プレイヤー1)" maxlength="10">
@@ -74,7 +74,7 @@
     </div>
 </div>
 
-<div id="result" class="overlay">
+<div id="result">
     <div id="win-msg">VICTORY!</div>
     <div class="rematch-status">
         <div id="st-p1" class="p-status">YOU</div>
@@ -142,6 +142,7 @@ const AudioSys = {
         blast: () => { AudioSys.playNoise(0.5); AudioSys.playTone(50, 'square', 0.5, 0.3); },
         guard: () => AudioSys.playTone(800, 'square', 0.05, 0.05),
         shot: () => AudioSys.playTone(600, 'triangle', 0.1),
+        slash: () => AudioSys.playTone(300, 'sawtooth', 0.3),
         win: () => { if(!AudioSys.ctx) return; [300, 400, 500, 600, 800].forEach((f, i) => setTimeout(() => AudioSys.playTone(f, 'sine', 0.4, 0.2), i*150)); }
     }
 };
@@ -154,7 +155,7 @@ const GRAVITY=0.5, STAGE_W=2400, GROUND_Y=250, BLAST={x:3200,y:2000};
 const PLATFORMS=[{x:-600,y:0,w:300,h:20},{x:600,y:0,w:300,h:20},{x:0,y:-250,w:400,h:20}];
 const CHARS={
     kou:{name:"こう",col:"#3399ff",type:"bal",speed:1.0,weight:1.0},
-    minto:{name:"みんと",col:"#00ffcc",type:"rng",speed:1.1,weight:0.9},
+    minto:{name:"みんと",col:"#00ffcc",type:"rng",speed:0.95,weight:0.8}, // Nerfed
     kanade:{name:"かなで",col:"#ff0066",type:"pow",speed:0.9,weight:1.2},
     shiyou:{name:"しよう",col:"#8888ff",type:"gun",speed:1.05,weight:1.0},
     noda:{name:"のだ",col:"#800080",type:"tnk",speed:0.7,weight:1.6}
@@ -163,7 +164,6 @@ const CHARS={
 let peer=null, conn=null, myId=null, isHost=false, gameRunning=false;
 let myName="Player", oppName="Opponent", myChar='kou', oppChar='kou';
 let p1=null, p2=null, projectiles=[], particles=[];
-// ★ Fixed Camera
 let cam={x:0,y:-100,z:0.65}; 
 let rematchMe=false, rematchOpp=false;
 const keys={};
@@ -191,24 +191,10 @@ function joinRoom() {
 }
 function setupConn() {
     document.getElementById('status-msg').innerText="接続成功！";
-    conn.on('open', () => { 
-        // Initial Handshake
-        conn.send({ type:'init', name:myName }); 
-    });
+    conn.on('open', () => { conn.send({ type:'init', name:myName }); });
     conn.on('data', data => {
-        if(data.type==='init') { 
-            oppName=data.name; 
-            // After connection, Go back to char select if needed, or start if both ready
-            // Ideally: Stay connected, but allow char change.
-            // Simplified: Just start logic.
-            // For v16: We are at Step 2. We need to exchange CHARS now.
-            // Let's just send 'ready' with char.
-            conn.send({type:'ready', char:myChar});
-        }
-        if(data.type==='ready') {
-            oppChar = data.char;
-            startGame();
-        }
+        if(data.type==='init') { oppName=data.name; conn.send({type:'ready', char:myChar}); }
+        if(data.type==='ready') { oppChar = data.char; startGame(); }
         if(data.type==='sync') {
             let target = isHost ? p2 : p1;
             target.targetPos = data.pos; target.vel = data.vel; target.pct = data.pct; target.stocks = data.stocks;
@@ -216,15 +202,9 @@ function setupConn() {
             target.nodaPowered = data.np; target.shieldBroken = data.sb; target.anim = data.anim;
             if(data.fx) spawnFX(data.fx.x, data.fx.y, data.fx.type);
         }
-        if(data.type==='hit') { 
-            // I got hit (Receiver applies damage)
-            let me = isHost ? p1 : p2; 
-            me.applyHit(data.dmg, data.kb, data.dir, data.stun, true); 
-        }
-        if(data.type==='rematch_req') {
-            rematchOpp = true; updateRematchUI();
-            if(rematchMe && rematchOpp) returnToCharSelect();
-        }
+        if(data.type==='hit') { let me = isHost ? p1 : p2; me.applyHit(data.dmg, data.kb, data.dir, data.stun, true); }
+        if(data.type==='gameover') { showResult(data.win); }
+        if(data.type==='rematch_req') { rematchOpp = true; updateRematchUI(); if(rematchMe && rematchOpp) returnToCharSelect(); }
     });
     setInterval(sendSync, 33);
 }
@@ -329,7 +309,9 @@ class Fighter {
             this.prevJmp = jmp;
 
             if (smsh) {
-                if(this.key === 'shiyou') this.fireSniper(); else this.doSmash();
+                if(this.key === 'shiyou') this.fireSniper(); 
+                else if (this.key === 'noda') this.fireNodaSlash();
+                else this.doSmash();
             } else if (atk) {
                 if (!canCharge) {
                     if(this.key === 'shiyou') this.firePistol(); else this.doJab();
@@ -356,7 +338,6 @@ class Fighter {
         }
     }
 
-    // Attacks (Modified Range/Damage)
     doRecovery() {
         this.act = 'ATK'; this.actTime = 30; this.vel.y = 0;
         if (this.key === 'kou') { this.vel.y = -14; spawnFX(this.pos.x, this.pos.y+30, 'gas'); this.createHitbox(0, 30, 60, 40, 1, 2, 10); }
@@ -379,47 +360,42 @@ class Fighter {
         this.act = 'ATK'; this.actTime = 50;
         setTimeout(()=>{
             if(this.stun>0)return; let dmg=3, kb=6, pwr=this.key==='kanade'?1.5:1.0, range=80;
-            if(this.key === 'noda') {
-                if(this.nodaPowered) { dmg=8; kb=25; pwr=1; this.nodaPowered=false; this.charge=0; spawnFX(this.pos.x, this.pos.y, 'dark', true); } else { dmg=4; kb=8; }
-                this.createHitbox(0, 0, 150, 80, dmg, kb, 40); return;
-            }
             this.createHitbox(40, -10, range, 50, dmg*pwr, kb*pwr, 40);
             AudioSys.playTone(200, 'sawtooth', 0.2);
         }, 150);
     }
-    // Reduced Range for Minto/Shiyou
-    fireMintoShot() { this.act = 'ATK'; this.actTime = 20; const dir=this.faceR?1:-1; const dmg=1+(this.charge/this.maxCharge)*4; const sz=10+(this.charge/this.maxCharge)*15; projectiles.push(new Projectile(this, this.pos.x+40*dir, this.pos.y, dir, 0, 'shot', dmg, sz, 30)); AudioSys.sfx.shot(); } // Life=30
-    doKanadePunch() { this.act = 'ATK'; this.actTime = 40; const dmg=3+(this.charge/this.maxCharge)*5; const kb=8+(this.charge/this.maxCharge)*10; spawnFX(this.pos.x, this.pos.y, 'fire'); this.createHitbox(40, 0, 60, 60, dmg, kb, 40); AudioSys.sfx.shot(); }
-    firePistol() { this.act = 'ATK'; this.actTime = 15; const dir=this.faceR?1:-1; projectiles.push(new Projectile(this, this.pos.x+40*dir, this.pos.y-10, dir*1.5, 0, 'shot', 0.8, 5, 20)); AudioSys.sfx.shot(); } // Life=20
-    fireSniper() { this.act = 'ATK'; this.actTime = 80; setTimeout(() => { if(this.stun>0) return; const dir=this.faceR?1:-1; projectiles.push(new Projectile(this, this.pos.x+50*dir, this.pos.y-10, dir*3, 0, 'sniper', 5, 8, 60)); AudioSys.sfx.blast(); }, 40); } // Longer lag
+    fireNodaSlash() {
+        this.act = 'ATK'; this.actTime = 40; const dir=this.faceR?1:-1; let dmg=6, kb=10;
+        if(this.nodaPowered) { dmg=15; kb=25; this.nodaPowered=false; this.charge=0; spawnFX(this.pos.x, this.pos.y, 'dark', true); }
+        projectiles.push(new Projectile(this, this.pos.x+40*dir, this.pos.y, dir*1.5, 0, 'slash', dmg, 20, 40)); AudioSys.sfx.slash();
+    }
+    fireMintoShot() { this.act = 'ATK'; this.actTime = 20; const dir=this.faceR?1:-1; const dmg=1+(this.charge/this.maxCharge)*4; const sz=10+(this.charge/this.maxCharge)*15; projectiles.push(new Projectile(this, this.pos.x+40*dir, this.pos.y, dir, 0, 'shot', dmg, sz, 30)); AudioSys.sfx.shot(); }
+    doKanadePunch() { 
+        this.act = 'ATK'; this.actTime = 40; 
+        const ratio = this.charge/this.maxCharge;
+        const dmg=3+ratio*5; const kb=8+ratio*10; 
+        const sz=60 + (ratio >= 1 ? 60 : 0); // Max Charge -> Big Range
+        spawnFX(this.pos.x, this.pos.y, 'fire'); 
+        this.createHitbox(40, 0, sz, sz, dmg, kb, 40); AudioSys.sfx.shot(); 
+    }
+    firePistol() { this.act = 'ATK'; this.actTime = 15; const dir=this.faceR?1:-1; projectiles.push(new Projectile(this, this.pos.x+40*dir, this.pos.y-10, dir*1.5, 0, 'shot', 0.8, 5, 20)); AudioSys.sfx.shot(); }
+    fireSniper() { this.act = 'ATK'; this.actTime = 80; setTimeout(() => { if(this.stun>0) return; const dir=this.faceR?1:-1; projectiles.push(new Projectile(this, this.pos.x+50*dir, this.pos.y-10, dir*3, 0, 'sniper', 5, 8, 60)); AudioSys.sfx.blast(); }, 40); }
 
     createHitbox(ox, oy, w, h, dmg, kb, stun) { const dir=this.faceR?1:-1; this.hitbox = { act:true, owner:this, x:this.pos.x+(ox*dir), y:this.pos.y+oy, w:w, h:h, dmg:dmg, kb:kb, stun:stun, dur:5, dir:dir }; }
     checkHit(hb) {
-        // ★ Guard Fix: Receiver (Me) processes hit. If I am guarding, I block.
         if(!this.isMe) return; 
-        
-        // Guard Check
-        if(this.act === 'GRD' && !this.shieldBroken) {
+        if(this.act === 'GRD') {
             if(this.key === 'kanade' && this.counterActive) { this.act = 'ATK'; this.actTime = 20; spawnFX(this.pos.x, this.pos.y, 'fire'); if(hb.owner) hb.owner.applyHit(5, 15, this.faceR?1:-1, 40, true); return; }
             this.shieldHP -= hb.dmg * 2;
             if (this.shieldHP <= 0) { this.shieldBroken = true; this.shieldBreakTimer = 600; this.stun = 120; spawnFX(this.pos.x, this.pos.y, 'expl'); } 
             else { this.pct += hb.dmg * 0.05; spawnFX(this.pos.x, this.pos.y, 'dust'); AudioSys.sfx.guard(); }
             return;
         }
-        // Hit
         this.applyHit(hb.dmg, hb.kb, hb.dir, hb.stun, true);
     }
     applyHit(dmg, kb, dir, stun, forced) {
-        // Forced allows network hit (but checkHit above handles logic)
-        // If called directly via 'hit' event from opponent projectile, we trust it unless guarding
         if(!this.isMe && !forced) return;
-        
-        if(this.act === 'GRD' && !this.shieldBroken) {
-             // Guard logic if called via network event
-             this.shieldHP -= dmg * 2; AudioSys.sfx.guard();
-             return;
-        }
-
+        if(this.act === 'GRD' && !this.shieldBroken) { this.shieldHP -= dmg * 2; AudioSys.sfx.guard(); return; }
         this.pct += dmg; let kbVal = 0;
         if (this.pct < 100) kbVal = (kb * 0.1) / this.weight; else { let factor = (this.pct - 90) / 10; kbVal = (kb * factor) / this.weight; }
         this.vel.x = dir * kbVal * 2; this.vel.y = -kbVal * 1.5; this.stun = stun + kbVal; spawnFX(this.pos.x, this.pos.y, 'hit', kbVal>10);
@@ -432,7 +408,7 @@ class Fighter {
             this.stocks--; this.pct=0; this.pos={x:0,y:-400}; this.vel={x:0,y:0};
             this.shieldHP=50; this.shieldBroken=false; this.canRecover=true; this.nodaPowered=false; this.charge=0;
             spawnFX(this.pos.x, this.pos.y, 'expl'); AudioSys.sfx.blast();
-            if(this.stocks<=0) showResult(false);
+            if(this.stocks<=0) { if(conn && conn.open) conn.send({type:'gameover', win:true}); showResult(false); }
         }
     }
     updateHUD() {
@@ -457,6 +433,10 @@ class Fighter {
         let br=0, fr=0;
         if(this.act==='RUN'){const s=Math.sin(this.anim*0.4);br=s*0.8;fr=-s*0.8;} else if(this.act==='ATK'){fr=-1.5;br=0.5;if(this.key==='shiyou')fr=-1.6;if(this.key==='noda')fr=1.5;} else if(this.act==='GRD'){fr=-1.0;br=-1.0;}
         if(this.key==='shiyou'&&this.act==='ATK'&&this.vel.y<0){ctx.fillStyle='#444';ctx.fillRect(-20,-70,40,10);ctx.fillRect(-2,-70,4,30);ctx.fillStyle='#ccc';if(Math.floor(this.anim/2)%2===0){ctx.fillRect(-25,-75,15,2);ctx.fillRect(10,-75,15,2);}}
+        
+        // Kanade Fire Aura
+        if(this.key==='kanade' && this.act==='ATK') { ctx.fillStyle='rgba(255,50,0,0.5)'; ctx.beginPath(); ctx.arc(0,0,40+Math.random()*10,0,Math.PI*2); ctx.fill(); }
+
         ctx.save();ctx.translate(-5,-5);ctx.rotate(br);ctx.lineWidth=8;ctx.strokeStyle='#222';ctx.lineCap='round';ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(0,25);ctx.stroke();ctx.fillStyle=this.col;ctx.beginPath();ctx.arc(0,25,6,0,Math.PI*2);ctx.fill();ctx.restore();
         ctx.fillStyle=dC;ctx.beginPath();ctx.rect(-15,-15,30,45);ctx.fill();
         const lS=this.act==='RUN'?Math.sin(this.anim*0.4)*10:0; ctx.beginPath();ctx.moveTo(-5,30);ctx.lineTo(-8-lS,50);ctx.stroke();ctx.beginPath();ctx.moveTo(5,30);ctx.lineTo(8+lS,50);ctx.stroke();
@@ -486,7 +466,14 @@ class Projectile {
             }
         }
     }
-    draw() { ctx.save(); ctx.translate(this.x, this.y); if(this.type==='beam') { ctx.fillStyle='#0ff'; ctx.fillRect(-5, -50, 10, 100); } else if(this.type==='sniper') { ctx.fillStyle='#ff0'; ctx.fillRect(-10, -2, 20, 4); } else { ctx.fillStyle=this.o.col; ctx.beginPath(); ctx.arc(0,0,this.sz,0,Math.PI*2); ctx.fill(); } ctx.restore(); }
+    draw() { 
+        ctx.save(); ctx.translate(this.x, this.y); 
+        if(this.type==='beam') { ctx.fillStyle='#0ff'; ctx.fillRect(-5, -50, 10, 100); } 
+        else if(this.type==='sniper') { ctx.fillStyle='#ff0'; ctx.fillRect(-10, -2, 20, 4); } 
+        else if(this.type==='slash') { ctx.fillStyle='purple'; ctx.beginPath(); ctx.arc(0,0, this.sz, -Math.PI/2, Math.PI/2); ctx.fill(); }
+        else { ctx.fillStyle=this.o.col; ctx.beginPath(); ctx.arc(0,0,this.sz,0,Math.PI*2); ctx.fill(); } 
+        ctx.restore(); 
+    }
 }
 
 function spawnFX(x, y, type) { let c='#fff'; if(type==='fire')c='#f00'; if(type==='gas')c='#0f0'; if(type==='dark')c='#a020f0'; for(let i=0;i<8;i++) particles.push({x:x, y:y, vx:(Math.random()-.5)*10, vy:(Math.random()-.5)*10, life:1.0, col:c}); }
@@ -512,7 +499,7 @@ function loop() {
     if(conn && conn.open) conn.send({ type:'sync', pos:me.pos, vel:me.vel, pct:me.pct, stocks:me.stocks, shp:me.shieldHP, chg:me.charge, act:me.act, fr:me.faceR, np:me.nodaPowered, sb:me.shieldBroken, anim:me.anim });
 
     ctx.fillStyle='#87CEEB'; ctx.fillRect(0,0,cvs.width,cvs.height);
-    // Fixed Center Camera
+    // ★ Fixed Center Camera
     ctx.save(); ctx.translate(cvs.width/2, cvs.height/2); ctx.scale(cam.z, cam.z); ctx.translate(0, cam.y);
     ctx.fillStyle='#5d4037'; ctx.fillRect(-1200, 250, 2400, 500); ctx.fillStyle='#76ff03'; ctx.fillRect(-1200, 250, 2400, 20); ctx.fillStyle='#8d6e63'; PLATFORMS.forEach(p=>ctx.fillRect(p.x-p.w/2, p.y-p.h/2, p.w, p.h));
     p1.draw(); p2.draw();
@@ -549,7 +536,6 @@ function returnToCharSelect() {
     document.getElementById('step1').style.display='block';
     document.getElementById('step2').style.display='none';
     document.getElementById('menu').style.display='flex';
-    // Opponent will also trigger this via network 'rematch_req' check
 }
 </script>
 </body>
