@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>Ultimate Smash v23: CPU & Online</title>
+    <title>Ultimate Smash v23.1: Fixed</title>
     <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
     <style>
         body { margin: 0; overflow: hidden; background: #111; font-family: 'Segoe UI', sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; color: white; user-select: none; }
@@ -15,7 +15,7 @@
         button { padding: 10px 30px; font-size: 18px; cursor: pointer; background: #ffe600; border: none; font-weight: bold; margin-top: 10px; border-radius: 50px; transition: 0.2s; }
         button:hover { transform: scale(1.05); box-shadow: 0 0 15px #ffe600; }
         button:disabled { background: #555; color: #888; cursor: default; transform: none; box-shadow: none; }
-        .mode-btn { width: 200px; margin: 10px; display: block; }
+        .mode-btn { width: 220px; margin: 10px; display: block; }
 
         .char-select { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-top: 20px; }
         .card { width: 90px; padding: 5px; background: #333; border: 2px solid #555; border-radius: 5px; cursor: pointer; }
@@ -44,7 +44,7 @@
 <body>
 
 <div id="menu" class="overlay">
-    <h1>SMASH ONLINE v23</h1>
+    <h1>SMASH ONLINE v23.1</h1>
     
     <div id="step0" class="box">
         <h3>プレイヤー名を入力</h3>
@@ -192,7 +192,6 @@ function sel(k,e) { myChar=k; document.querySelectorAll('.card').forEach(c=>c.cl
 function goToNext() {
     if(gameMode === 'cpu') {
         oppName = "CPU";
-        // Random CPU Char
         const keys = Object.keys(CHARS);
         oppChar = keys[Math.floor(Math.random() * keys.length)];
         startGame();
@@ -244,13 +243,13 @@ function startGame() {
     document.getElementById('hud').style.display='flex'; cvs.style.display='block';
     
     if(gameMode === 'cpu') {
-        isHost = true; // Player is always "Host" logic in CPU mode
-        p1=new Fighter(true, myChar, -300, false); 
-        p2=new Fighter(false, oppChar, 300, true); // CPU
+        isHost = true;
+        p1=new Fighter(true, myChar, -300, false); p1.isMe = true; // FIX: Ensure P1 is ME in CPU mode
+        p2=new Fighter(false, oppChar, 300, true);
     } else {
         p1=new Fighter(true, isHost?myChar:oppChar, -300, false);
         p2=new Fighter(false, isHost?oppChar:myChar, 300, false);
-        p1.isMe=isHost; p2.isMe=!isHost; // Network ownership
+        p1.isMe=isHost; p2.isMe=!isHost;
     }
     
     p1.displayName = isHost?myName:oppName;
@@ -258,7 +257,8 @@ function startGame() {
     document.getElementById('p1n').innerText=p1.displayName; document.getElementById('p2n').innerText=p2.displayName;
     
     gameRunning=true; rematchMe=false; rematchOpp=false;
-    document.getElementById('rematch-btn').disabled=false; document.getElementById('rematch-btn').innerText="キャラ選択へ戻る";
+    document.getElementById('rematch-btn').disabled=false;
+    document.getElementById('rematch-btn').innerText = gameMode==='cpu' ? "もう一度" : "キャラ選択へ戻る";
     document.getElementById('st-p1').className="p-status"; document.getElementById('st-p2').className="p-status";
     AudioSys.sfx.win(); loop();
 }
@@ -275,31 +275,26 @@ class Fighter {
         this.canRecover=true; this.counterActive=false; this.ignorePlat=false;
         this.nodaPowered=false;
         this.prevJ=false; this.prevK=false;
-        this.isMe = false; // Default, set later
+        this.isMe = false;
         
-        // Vars
         this.skForm = false; this.skTimer = 0; this.skCooldown = 0; this.virusTimer = 0; this.isVirus = false;
         this.mintoSpecial = 0; this.kouMode = false; this.kouSpeedTimer = 0;
     }
 
     update(opp) {
         if(this.stocks<=0)return;
-        
         if(this.isVirus) { this.virusTimer--; if(this.virusTimer%30===0) this.pct+=1; if(this.virusTimer<=0)this.isVirus=false; }
 
-        // If Remote Player (Online mode), only sync
         if(gameMode === 'online' && !this.isMe) {
             this.anim++;
             this.pos.x+=(this.targetPos.x-this.pos.x)*0.5; this.pos.y+=(this.targetPos.y-this.pos.y)*0.5;
             return; 
         }
 
-        // --- SK Logic ---
         if(this.skCooldown>0) this.skCooldown--;
         if(this.skForm) { this.skTimer--; if(this.skTimer<=0) { this.skForm=false; this.skCooldown=1200; AudioSys.playTone(200,'sine',0.5); } }
-
-        // --- Kou Logic ---
         if(this.kouSpeedTimer>0) this.kouSpeedTimer--;
+        
         if(this.key==='kou' && this.kouMode) {
             if(Math.abs(this.pos.x - opp.pos.x) < 50 && Math.abs(this.pos.y - opp.pos.y) < 50) {
                 if(this.anim % 10 === 0) {
@@ -310,7 +305,6 @@ class Fighter {
             }
         }
 
-        // --- Minto Special ---
         if(this.mintoSpecial > 0) {
             this.mintoSpecial--; this.vel.x = 0; this.vel.y = 0;
             if(this.mintoSpecial % 4 === 0) {
@@ -326,12 +320,11 @@ class Fighter {
 
         if(this.stun>0){this.stun--;this.phys();return;}
 
-        // --- INPUT ---
         let inX=0, up=false, jmp=false, atk=false, smsh=false, grd=false, drop=false;
         let j_down=false, j_press=false, k_press=false;
 
         if(this.isCPU) {
-            // CPU Logic
+            // Simple CPU AI
             const dx = opp.pos.x - this.pos.x;
             if(Math.abs(this.pos.x)>900 || this.pos.y>400) { 
                 inX = this.pos.x<0?1:-1;
@@ -355,7 +348,6 @@ class Fighter {
         if(inX!==0)this.faceR=inX>0;
         this.ignorePlat=drop; if(drop&&!this.onG)this.vel.y+=1.0;
 
-        // COMMANDS
         if(this.key==='sk' && !this.skForm && this.skCooldown<=0 && grd && j_down && k_press) {
             this.skForm=true; this.skTimer=900; spawnFX(this.pos.x, this.pos.y, 'dark'); AudioSys.sfx.devil();
             atk=false; smsh=false; grd=false;
@@ -363,7 +355,6 @@ class Fighter {
         if(this.key==='minto' && grd && j_down && k_press && this.actTime<=0) { this.mintoSpecial = 240; atk=false; smsh=false; grd=false; }
         if(this.key==='shiyou' && grd && j_down && k_press && this.actTime<=0) { this.fireRocket(); atk=false; smsh=false; grd=false; }
 
-        // GUARD
         if (grd && (this.onG || this.skForm) && this.act !== 'ATK' && !this.shieldBroken) {
             this.act = 'GRD'; this.vel.x *= 0.5; 
             this.counterActive = (this.key === 'kanade' || (this.key === 'sk' && !this.skForm));
@@ -371,14 +362,12 @@ class Fighter {
             this.counterActive = false; if (this.act === 'GRD') this.act = 'IDLE';
         }
 
-        // RECOVERY
         if (this.actTime<=0 && up && j_press && !this.onG && !this.skForm) {
              if(this.key==='noda') this.doRecovery(); 
              else if(this.canRecover) { this.doRecovery(); this.canRecover=false; }
              j_press=false;
         }
 
-        // CHARGE
         const canCharge = (this.key==='minto'||this.key==='kanade'||(this.key==='sk'&&this.skForm));
         if (canCharge) {
             if (j_down && this.act!=='GRD' && this.actTime<=0) {
@@ -393,20 +382,15 @@ class Fighter {
                 this.charge=0;
             }
         } else {
-            // Kou Mode Switch
             if(this.key==='kou' && j_press && this.actTime<=0) {
-                this.kouMode = !this.kouMode;
-                spawnFX(this.pos.x, this.pos.y, 'hit'); AudioSys.sfx.mode();
-                atk=false;
+                this.kouMode = !this.kouMode; spawnFX(this.pos.x, this.pos.y, 'hit'); AudioSys.sfx.mode(); atk=false;
             }
             else if (j_press && this.actTime<=0 && this.act!=='GRD') atk=true;
         }
 
-        // ACTIONS
         if (this.actTime <= 0 && this.act !== 'GRD') {
             let spd = this.speed;
             if(this.key==='kou' && this.kouSpeedTimer>0) spd *= 2.0;
-
             this.vel.x += inX * (this.onG?1.5:0.2) * spd;
             if (Math.abs(this.vel.x) > 0.5 && this.onG) this.act = 'RUN'; else if(!this.onG) this.act = 'AIR'; else this.act = 'IDLE';
             if (jmp && this.jumps>0 && !this.prevJmp) { this.vel.y = -16; this.jumps--; this.onG=false; spawnFX(this.pos.x, this.pos.y+40, 'dust'); AudioSys.sfx.jump(); }
@@ -445,19 +429,10 @@ class Fighter {
         }
     }
 
-    // --- MOVES ---
     doSKPillar() { this.act='ATK'; this.actTime=30; const dir=this.faceR?1:-1; spawnFX(this.pos.x+30*dir, this.pos.y, 'dark'); this.createHitbox(30, -50, 20, 150, 4, 10, 20); AudioSys.playTone(100, 'square', 0.2); }
     fireVirus() { this.act='ATK'; this.actTime=40; projectiles.push(new Projectile(this, this.pos.x, this.pos.y, 3, 0, 'virus', 1, 15, 60)); projectiles.push(new Projectile(this, this.pos.x, this.pos.y, -3, 0, 'virus', 1, 15, 60)); AudioSys.playTone(800, 'sawtooth', 0.1); }
-    doDevilDash() { // Weakened
-        this.act='ATK'; this.actTime=30; const dir=this.faceR?1:-1; this.vel.x = 25 * dir; 
-        this.createHitbox(0, 0, 100, 100, 3, 10, 20); AudioSys.sfx.blast();
-    }
-    fireDevilLaser() { // Weakened
-        this.act='ATK'; this.actTime=40; const dir=this.faceR?1:-1;
-        const dmg = 2 + (this.charge/this.maxCharge)*2; // 2~4
-        projectiles.push(new Projectile(this, this.pos.x+40*dir, this.pos.y, dir*2, 0, 'beam', dmg, 30, 50));
-        AudioSys.sfx.blast();
-    }
+    doDevilDash() { this.act='ATK'; this.actTime=30; const dir=this.faceR?1:-1; this.vel.x = 25 * dir; this.createHitbox(0, 0, 100, 100, 3, 10, 20); AudioSys.sfx.blast(); }
+    fireDevilLaser() { this.act='ATK'; this.actTime=40; const dir=this.faceR?1:-1; const dmg = 2 + (this.charge/this.maxCharge)*2; projectiles.push(new Projectile(this, this.pos.x+40*dir, this.pos.y, dir*2, 0, 'beam', dmg, 30, 50)); AudioSys.sfx.blast(); }
     doRecovery() {
         this.act='ATK'; this.actTime=30; this.vel.y=0;
         if(this.key==='kou'){this.vel.y=-14;spawnFX(this.pos.x,this.pos.y+30,'gas');AudioSys.sfx.fart();this.createHitbox(0,30,60,40,1,2,10);}
@@ -489,12 +464,11 @@ class Fighter {
     createHitbox(ox, oy, w, h, dmg, kb, stun) { const dir=this.faceR?1:-1; this.hitbox = { act:true, owner:this, x:this.pos.x+(ox*dir), y:this.pos.y+oy, w:w, h:h, dmg:dmg, kb:kb, stun:stun, dur:5, dir:dir }; }
     
     checkHit(hb) {
-        if(!this.isMe && gameMode==='online') return; // In CPU mode, everyone processes hits
+        if(!this.isMe && gameMode==='online') return; 
         if(this.act === 'GRD') {
             if(this.skForm) return; 
             if(this.key === 'kanade' || this.key === 'sk') { 
-                this.act = 'ATK'; this.actTime = 20; spawnFX(this.pos.x, this.pos.y, 'fire'); 
-                AudioSys.sfx.reflect();
+                this.act = 'ATK'; this.actTime = 20; spawnFX(this.pos.x, this.pos.y, 'fire'); AudioSys.sfx.reflect();
                 if(hb.isProj) { const dir=this.faceR?1:-1; projectiles.push(new Projectile(this,this.pos.x+40*dir,this.pos.y,dir*2,0,'shot',hb.dmg*2,10,60)); } 
                 else if(hb.owner) { hb.owner.applyHit(5, 15, this.faceR?1:-1, 40, true); }
                 return; 
@@ -525,13 +499,30 @@ class Fighter {
             this.shieldHP=50; this.shieldBroken=false; this.canRecover=true; this.nodaPowered=false; this.charge=0;
             this.skForm=false; this.isVirus=false; this.mintoSpecial=0; this.kouMode=false; this.kouSpeedTimer=0;
             spawnFX(this.pos.x, this.pos.y, 'expl'); AudioSys.sfx.blast();
-            if(this.stocks<=0) { 
-                if(gameMode==='online' && conn && conn.open) conn.send({type:'gameover', win:true}); 
-                showResult(false); 
-            }
+            if(this.stocks<=0) { if(gameMode==='online' && conn && conn.open) conn.send({type:'gameover', win:true}); showResult(false); }
         }
     }
-    updateHUD() { /* Same as before */ }
+    updateHUD() {
+        const id = this.isMe ? 'p1' : 'p2';
+        document.getElementById(id+'p').innerText = Math.floor(this.pct)+"%";
+        document.getElementById(id+'_poison').style.display = this.isVirus ? 'block' : 'none';
+        document.getElementById(id+'s_fill').style.width = (this.shieldHP/this.shieldMax)*100+"%";
+        document.getElementById(id+'s_fill').style.background = this.shieldBroken ? "#555" : "#00aaff";
+        let bar=document.getElementById(id+'c_bar'), fill=document.getElementById(id+'c_fill');
+        if(this.key==='sk') {
+            bar.style.display='block';
+            if(this.skForm) { fill.style.width="100%"; fill.style.background="#f0f"; }
+            else if(this.skCooldown>0) { fill.style.width = ((1200-this.skCooldown)/1200)*100 + "%"; fill.style.background="#555"; }
+            else { fill.style.width="100%"; fill.style.background="#000"; }
+        } else if(this.key==='kou' && this.kouSpeedTimer>0) {
+            bar.style.display='block'; fill.style.width=(this.kouSpeedTimer/300)*100+"%"; fill.style.background="#fff";
+        } else if(this.key==='minto'||this.key==='kanade'||this.key==='noda') {
+            bar.style.display='block'; fill.style.width = (this.charge/this.maxCharge)*100+"%";
+            fill.style.background = (this.key==='kanade'||(this.key==='noda'&&this.nodaPowered))?'#f00':'#0ff';
+        } else { bar.style.display='none'; }
+        let sHtml=""; for(let i=0;i<this.stocks;i++) sHtml+=`<div class="dot" style="background:${this.col}"></div>`;
+        document.getElementById(id+'s').innerHTML=sHtml;
+    }
     draw() {
         if(this.stocks<=0) return;
         ctx.save(); ctx.translate(this.pos.x, this.pos.y); if(!this.faceR) ctx.scale(-1,1);
@@ -608,6 +599,7 @@ function isHit(r1, t) { return (r1.x < t.pos.x+20 && r1.x+r1.w > t.pos.x-20 && r
 
 function loop() {
     if(!gameRunning) return; requestAnimationFrame(loop);
+    
     let me = isHost ? p1 : p2; let opp = isHost ? p2 : p1;
     me.update(opp); opp.anim++;
     opp.pos.x += (opp.targetPos.x - opp.pos.x) * 0.5; opp.pos.y += (opp.targetPos.y - opp.pos.y) * 0.5;
@@ -667,6 +659,7 @@ function updateRematchUI() {
 }
 function returnToCharSelect() {
     document.getElementById('result').style.display='none'; document.getElementById('hud').style.display='none';
+    if(gameMode==='cpu') { startGame(); return; } // CPU instant restart
     document.getElementById('step1').style.display='block'; document.getElementById('step2').style.display='none'; document.getElementById('menu').style.display='flex';
 }
 </script>
