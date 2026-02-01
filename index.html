@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>Ultimate Smash Online v20: Devil SK</title>
+    <title>Ultimate Smash Online v21: Devil & Laser</title>
     <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
     <style>
         body { margin: 0; overflow: hidden; background: #111; font-family: 'Segoe UI', sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; color: white; user-select: none; }
@@ -44,7 +44,7 @@
 <body>
 
 <div id="menu" class="overlay">
-    <h1>SMASH ONLINE v20</h1>
+    <h1>SMASH ONLINE v21</h1>
     <div id="step0" class="box">
         <h3>プレイヤー名を入力</h3>
         <input type="text" id="username-input" placeholder="名前 (例: プレイヤー1)" maxlength="10">
@@ -135,6 +135,7 @@ const AudioSys = {
         shot: ()=>AudioSys.playTone(600,'triangle',0.1),
         slash: ()=>AudioSys.playTone(300,'sawtooth',0.3),
         devil: ()=>AudioSys.playTone(100,'sawtooth',1.0,0.5),
+        laser: ()=>{AudioSys.playTone(800,'sawtooth',0.1,0.05);},
         fart: ()=>{
             if(!AudioSys.ctx)return; const o=AudioSys.ctx.createOscillator(),g=AudioSys.ctx.createGain();
             o.type='sawtooth'; o.frequency.setValueAtTime(150,AudioSys.ctx.currentTime); o.frequency.linearRampToValueAtTime(50,AudioSys.ctx.currentTime+0.4);
@@ -155,7 +156,7 @@ const CHARS={
     kanade:{name:"かなで",col:"#ff0066",speed:0.9,weight:1.2},
     shiyou:{name:"しよう",col:"#8888ff",speed:1.05,weight:1.0},
     noda:{name:"のだ",col:"#800080",speed:0.7,weight:1.6},
-    sk:{name:"sk",col:"#000000",speed:1.0,weight:1.0} // sk Added
+    sk:{name:"sk",col:"#000000",speed:1.0,weight:1.0}
 };
 
 let peer=null, conn=null, myId=null, isHost=false, gameRunning=false;
@@ -186,8 +187,8 @@ function setupConn() {
             t.targetPos=data.pos; t.vel=data.vel; t.pct=data.pct; t.stocks=data.stocks;
             t.shieldHP=data.shp; t.charge=data.chg; t.act=data.act; t.faceR=data.fr;
             t.nodaPowered=data.np; t.shieldBroken=data.sb; t.anim=data.anim;
-            // SK Sync
-            t.skForm=data.skf; t.isVirus=data.isv;
+            // SK & Minto Sync
+            t.skForm=data.skf; t.isVirus=data.isv; t.mintoSpecial=data.mtsp;
             if(data.fx) spawnFX(data.fx.x, data.fx.y, data.fx.type);
         }
         if(data.type==='hit'){ let me=isHost?p1:p2; me.applyHit(data.dmg, data.kb, data.dir, data.stun, true); }
@@ -202,7 +203,7 @@ function sendSync() {
         conn.send({
             type:'sync', pos:me.pos, vel:me.vel, pct:me.pct, stocks:me.stocks, shp:me.shieldHP,
             chg:me.charge, act:me.act, fr:me.faceR, np:me.nodaPowered, sb:me.shieldBroken, anim:me.anim,
-            skf:me.skForm, isv:me.isVirus
+            skf:me.skForm, isv:me.isVirus, mtsp:me.mintoSpecial
         });
     }
 }
@@ -233,18 +234,18 @@ class Fighter {
         this.prevJ=false; this.prevK=false;
         
         // SK Vars
-        this.skForm = false; this.skTimer = 0;
-        this.virusTimer = 0; this.isVirus = false; // Is infected?
+        this.skForm = false; this.skTimer = 0; this.skCooldown = 0;
+        this.virusTimer = 0; this.isVirus = false;
+        // Minto Vars
+        this.mintoSpecial = 0;
     }
 
     update() {
         if(this.stocks<=0)return;
         
-        // Virus Damage (DoT)
+        // Virus Damage
         if(this.isVirus) {
-            this.virusTimer--;
-            if(this.virusTimer%30===0) this.pct += 1; // 1% per 0.5s
-            if(this.virusTimer<=0) this.isVirus=false;
+            this.virusTimer--; if(this.virusTimer%30===0) this.pct+=1; if(this.virusTimer<=0)this.isVirus=false;
         }
 
         if(!this.isMe) {
@@ -253,10 +254,25 @@ class Fighter {
             return; 
         }
 
-        // SK Transformation Logic
+        // --- SK Logic ---
+        if(this.skCooldown>0) this.skCooldown--;
         if(this.skForm) {
             this.skTimer--;
-            if(this.skTimer<=0) { this.skForm=false; AudioSys.playTone(200,'sine',0.5); }
+            if(this.skTimer<=0) { this.skForm=false; this.skCooldown=1200; AudioSys.playTone(200,'sine',0.5); }
+        }
+
+        // --- Minto Special Logic ---
+        if(this.mintoSpecial > 0) {
+            this.mintoSpecial--;
+            this.vel.x = 0; this.vel.y = 0; // Stop
+            if(this.mintoSpecial % 4 === 0) { // Laser tick
+                const dir = this.faceR?1:-1;
+                // Create persistent hitbox by spamming short-life projectiles
+                projectiles.push(new Projectile(this, this.pos.x+40*dir, this.pos.y, dir*3, 0, 'beam', 1, 30, 2));
+                AudioSys.sfx.laser();
+            }
+            // Cannot do other actions
+            return; 
         }
 
         if(this.shieldBroken){this.shieldBreakTimer--;if(this.shieldBreakTimer<=0){this.shieldBroken=false;this.shieldHP=50;}}
@@ -275,9 +291,14 @@ class Fighter {
         if(keys.z)grd=true;
 
         // SK Transform Command
-        if(this.key==='sk' && !this.skForm && keys.z && keys.j && keys.k) {
+        if(this.key==='sk' && !this.skForm && this.skCooldown<=0 && keys.z && keys.j && keys.k) {
             this.skForm=true; this.skTimer=900; // 15 sec
             spawnFX(this.pos.x, this.pos.y, 'dark'); AudioSys.sfx.devil();
+            atk=false; smsh=false; grd=false;
+        }
+        // Minto Secret Laser
+        if(this.key==='minto' && keys.z && keys.j && keys.k && this.actTime<=0) {
+            this.mintoSpecial = 240; // 4 sec
             atk=false; smsh=false; grd=false;
         }
         // Shiyou Rocket
@@ -286,7 +307,7 @@ class Fighter {
         if(inX!==0)this.faceR=inX>0;
         this.ignorePlat=drop; if(drop&&!this.onG)this.vel.y+=1.0;
 
-        // Guard / Counter / Barrier
+        // Guard
         if (grd && (this.onG || this.skForm) && this.act !== 'ATK' && !this.shieldBroken) {
             this.act = 'GRD'; this.vel.x *= 0.5; 
             this.counterActive = (this.key === 'kanade' || (this.key === 'sk' && !this.skForm));
@@ -294,14 +315,12 @@ class Fighter {
             this.counterActive = false; if (this.act === 'GRD') this.act = 'IDLE';
         }
 
-        // Recovery / Up-B
         if (this.actTime<=0 && up && j_press && !this.onG && !this.skForm) {
              if(this.key==='noda') this.doRecovery(); 
              else if(this.canRecover) { this.doRecovery(); this.canRecover=false; }
              j_press=false;
         }
 
-        // Charge
         const canCharge = (this.key==='minto'||this.key==='kanade'||(this.key==='sk'&&this.skForm));
         if (canCharge) {
             if (j_down && this.act!=='GRD' && this.actTime<=0) {
@@ -320,23 +339,14 @@ class Fighter {
         }
 
         if (this.actTime <= 0 && this.act !== 'GRD') {
-            // Flight Logic for SK Form
-            if(this.skForm) {
-                this.vel.x = inX * 5; 
-                this.vel.y = (keys.w?-1:keys.s?1:0) * 5;
-                if(inX!==0 || keys.w || keys.s) this.act='RUN'; else this.act='IDLE';
-            } else {
-                this.vel.x += inX * (this.onG?1.5:0.2) * this.speed;
-                if (Math.abs(this.vel.x) > 0.5 && this.onG) this.act = 'RUN'; else if(!this.onG) this.act = 'AIR'; else this.act = 'IDLE';
-                if (jmp && this.jumps>0 && !this.prevJmp) { this.vel.y = -16; this.jumps--; this.onG=false; spawnFX(this.pos.x, this.pos.y+40, 'dust'); AudioSys.sfx.jump(); }
-                this.prevJmp = jmp;
-            }
+            this.vel.x += inX * (this.onG?1.5:0.2) * this.speed;
+            if (Math.abs(this.vel.x) > 0.5 && this.onG) this.act = 'RUN'; else if(!this.onG) this.act = 'AIR'; else this.act = 'IDLE';
+            if (jmp && this.jumps>0 && !this.prevJmp) { this.vel.y = -16; this.jumps--; this.onG=false; spawnFX(this.pos.x, this.pos.y+40, 'dust'); AudioSys.sfx.jump(); }
+            this.prevJmp = jmp;
 
             if (smsh) {
                 if(this.key==='shiyou') this.fireSniper(); else if(this.key==='noda') this.fireNodaSlash(); 
-                else if(this.key==='sk') {
-                    if(this.skForm) { /* K is charge laser handled above */ } else this.fireVirus();
-                }
+                else if(this.key==='sk') { if(this.skForm) { /*K is laser*/ } else this.fireVirus(); }
                 else this.doSmash();
             } else if (atk) {
                 if (!canCharge) {
@@ -351,7 +361,7 @@ class Fighter {
     }
 
     phys() {
-        if(this.skForm) { this.pos.x+=this.vel.x; this.pos.y+=this.vel.y; return; } // Flying
+        // SK NO FLIGHT, just gravity even in form
         this.vel.y += GRAVITY; this.vel.x *= this.onG ? 0.8 : 0.98;
         this.pos.x += this.vel.x; this.pos.y += this.vel.y;
         this.onG = false; const footY = this.pos.y + 40;
@@ -368,33 +378,28 @@ class Fighter {
     }
 
     // --- SK MOVES ---
-    doSKPillar() { // J (Vertical Attack)
-        this.act='ATK'; this.actTime=30; 
-        const dir=this.faceR?1:-1; 
-        // Vertical hitbox in front
-        spawnFX(this.pos.x+40*dir, this.pos.y, 'dark');
-        this.createHitbox(40, -50, 30, 150, 4, 10, 20); // Tall hitbox
+    doSKPillar() { // J (Vertical)
+        this.act='ATK'; this.actTime=30; const dir=this.faceR?1:-1; 
+        spawnFX(this.pos.x+30*dir, this.pos.y, 'dark');
+        this.createHitbox(30, -50, 20, 150, 4, 10, 20); // Narrower
         AudioSys.playTone(100, 'square', 0.2);
     }
     fireVirus() { // K (Virus)
         this.act='ATK'; this.actTime=40; 
-        // Shoot left and right
         projectiles.push(new Projectile(this, this.pos.x, this.pos.y, 3, 0, 'virus', 1, 15, 60));
         projectiles.push(new Projectile(this, this.pos.x, this.pos.y, -3, 0, 'virus', 1, 15, 60));
         AudioSys.playTone(800, 'sawtooth', 0.1);
     }
     doDevilDash() { // Transform J
-        this.act='ATK'; this.actTime=30; 
-        const dir=this.faceR?1:-1; 
-        this.vel.x = 20 * dir; // Dash
-        this.createHitbox(0, 0, 80, 80, 10, 20, 40); // Strong
+        this.act='ATK'; this.actTime=30; const dir=this.faceR?1:-1; 
+        this.vel.x = 25 * dir; 
+        this.createHitbox(0, 0, 100, 100, 10, 20, 40); 
         AudioSys.sfx.blast();
     }
-    fireDevilLaser() { // Transform K (Charge)
-        this.act='ATK'; this.actTime=40;
-        const dir=this.faceR?1:-1;
+    fireDevilLaser() { // Transform K
+        this.act='ATK'; this.actTime=40; const dir=this.faceR?1:-1;
         const dmg = 5 + (this.charge/this.maxCharge)*15;
-        projectiles.push(new Projectile(this, this.pos.x+40*dir, this.pos.y, dir*2, 0, 'beam', dmg, 20, 50));
+        projectiles.push(new Projectile(this, this.pos.x+40*dir, this.pos.y, dir*2, 0, 'beam', dmg, 30, 50));
         AudioSys.sfx.blast();
     }
 
@@ -433,8 +438,8 @@ class Fighter {
     checkHit(hb) {
         if(!this.isMe) return; 
         if(this.act === 'GRD') {
-            if(this.skForm) return; // Barrier is invincible? Yes.
-            if(this.key === 'kanade' || this.key === 'sk') { // SK normal Z is counter too
+            if(this.skForm) return; // SK Devil Barrier is invincible
+            if(this.key === 'kanade' || this.key === 'sk') { 
                 this.act = 'ATK'; this.actTime = 20; spawnFX(this.pos.x, this.pos.y, 'fire'); 
                 AudioSys.sfx.reflect();
                 if(hb.isProj) { const dir=this.faceR?1:-1; projectiles.push(new Projectile(this,this.pos.x+40*dir,this.pos.y,dir*2,0,'shot',hb.dmg*2,10,60)); } 
@@ -446,10 +451,7 @@ class Fighter {
             else { this.pct += hb.dmg * 0.05; spawnFX(this.pos.x, this.pos.y, 'dust'); AudioSys.sfx.guard(); }
             return;
         }
-        
-        // Virus Check
-        if(hb.type === 'virus') { this.isVirus=true; this.virusTimer=300; } // 5 sec
-
+        if(hb.type === 'virus') { this.isVirus=true; this.virusTimer=300; }
         this.applyHit(hb.dmg, hb.kb, hb.dir, hb.stun, true);
     }
     applyHit(dmg, kb, dir, stun, forced) {
@@ -459,7 +461,6 @@ class Fighter {
         // Minto Nerf (80%+)
         let effectiveKB = kb;
         if(this.key === 'minto' && this.pct >= 80) effectiveKB *= 2.0;
-        // SK Devil Resistance
         if(this.skForm) effectiveKB *= 0.1;
 
         this.pct += dmg; 
@@ -476,7 +477,7 @@ class Fighter {
         if(Math.abs(this.pos.x)>BLAST.x || Math.abs(this.pos.y)>BLAST.y) {
             this.stocks--; this.pct=0; this.pos={x:0,y:-400}; this.vel={x:0,y:0};
             this.shieldHP=50; this.shieldBroken=false; this.canRecover=true; this.nodaPowered=false; this.charge=0;
-            this.skForm=false; this.isVirus=false;
+            this.skForm=false; this.isVirus=false; this.mintoSpecial=0;
             spawnFX(this.pos.x, this.pos.y, 'expl'); AudioSys.sfx.blast();
             if(this.stocks<=0) { if(conn && conn.open) conn.send({type:'gameover', win:true}); showResult(false); }
         }
@@ -488,7 +489,13 @@ class Fighter {
         document.getElementById(id+'s_fill').style.width = (this.shieldHP/this.shieldMax)*100+"%";
         document.getElementById(id+'s_fill').style.background = this.shieldBroken ? "#555" : "#00aaff";
         let bar=document.getElementById(id+'c_bar'), fill=document.getElementById(id+'c_fill');
-        if(this.key==='minto'||this.key==='kanade'||this.key==='noda'||(this.key==='sk'&&this.skForm)) {
+        // HUD logic for cooldown / special states
+        if(this.key==='sk') {
+            bar.style.display='block';
+            if(this.skForm) { fill.style.width="100%"; fill.style.background="#f0f"; }
+            else if(this.skCooldown>0) { fill.style.width = ((1200-this.skCooldown)/1200)*100 + "%"; fill.style.background="#555"; }
+            else { fill.style.width="100%"; fill.style.background="#000"; }
+        } else if(this.key==='minto'||this.key==='kanade'||this.key==='noda') {
             bar.style.display='block'; fill.style.width = (this.charge/this.maxCharge)*100+"%";
             fill.style.background = (this.key==='kanade'||(this.key==='noda'&&this.nodaPowered))?'#f00':'#0ff';
         } else { bar.style.display='none'; }
@@ -498,38 +505,60 @@ class Fighter {
     draw() {
         if(this.stocks<=0) return;
         ctx.save(); ctx.translate(this.pos.x, this.pos.y); if(!this.faceR) ctx.scale(-1,1);
-        ctx.save(); ctx.scale(this.faceR?1:-1, 1); ctx.fillStyle="white"; ctx.font="bold 16px Arial"; ctx.textAlign="center"; ctx.fillText(this.displayName, 0, -60); ctx.restore();
+        
+        // Minto Laser Visual
+        if(this.key==='minto' && this.mintoSpecial>0) {
+            ctx.fillStyle = `rgba(0, 255, 255, ${Math.random()*0.5+0.5})`;
+            ctx.fillRect(20, -10, 1000, 20); // Giant laser
+        }
+
+        // Scale for SK Form
+        if(this.key==='sk' && this.skForm) ctx.scale(2, 2);
+
+        ctx.save(); ctx.scale(this.faceR?1:-1, 1); ctx.fillStyle="white"; ctx.font="bold 16px Arial"; ctx.textAlign="center"; ctx.fillText(this.displayName, 0, (this.key==='sk'&&this.skForm)?-80:-60); ctx.restore();
         
         const bob = this.onG ? Math.sin(this.anim*0.2)*2 : 0; ctx.translate(0, bob);
         let dC=this.col; 
         if(this.key==='noda'&&this.nodaPowered&&Math.floor(this.anim/4)%2===0) dC="#ff00ff";
-        if(this.key==='sk'&&this.skForm) dC="#333"; // Devil color
+        if(this.key==='sk'&&this.skForm) dC="#220000"; // Scary dark red
 
         let br=0, fr=0;
         if(this.act==='RUN'){const s=Math.sin(this.anim*0.4);br=s*0.8;fr=-s*0.8;} else if(this.act==='ATK'){fr=-1.5;br=0.5;if(this.key==='shiyou')fr=-1.6;if(this.key==='noda')fr=1.5;} else if(this.act==='GRD'){fr=-1.0;br=-1.0;}
         if(this.key==='shiyou'&&this.act==='ATK'&&this.vel.y<0){ctx.fillStyle='#444';ctx.fillRect(-20,-70,40,10);ctx.fillRect(-2,-70,4,30);ctx.fillStyle='#ccc';if(Math.floor(this.anim/2)%2===0){ctx.fillRect(-25,-75,15,2);ctx.fillRect(10,-75,15,2);}}
         
         if(this.key==='kanade' && this.act==='ATK') { ctx.fillStyle='rgba(255,50,0,0.5)'; ctx.beginPath(); ctx.arc(0,0,40+Math.random()*10,0,Math.PI*2); ctx.fill(); }
-        // SK Devil Wings
+        // SK Devil Parts
         if(this.key==='sk'&&this.skForm) {
-            ctx.fillStyle='#000'; ctx.beginPath(); ctx.moveTo(-10,-30); ctx.lineTo(-60,-60); ctx.lineTo(-40,-10); ctx.fill();
-            ctx.beginPath(); ctx.moveTo(10,-30); ctx.lineTo(60,-60); ctx.lineTo(40,-10); ctx.fill();
+            ctx.fillStyle='#000'; 
+            // Jagged Wings
+            ctx.beginPath(); ctx.moveTo(-10,-30); ctx.lineTo(-70,-80); ctx.lineTo(-50,-20); ctx.lineTo(-30,-10); ctx.fill();
+            ctx.beginPath(); ctx.moveTo(10,-30); ctx.lineTo(70,-80); ctx.lineTo(50,-20); ctx.lineTo(30,-10); ctx.fill();
+            // Horns
+            ctx.fillStyle='#f00'; ctx.beginPath(); ctx.moveTo(-10,-35); ctx.lineTo(-20,-60); ctx.lineTo(-5,-45); ctx.fill();
+            ctx.beginPath(); ctx.moveTo(10,-35); ctx.lineTo(20,-60); ctx.lineTo(5,-45); ctx.fill();
         }
 
         ctx.save();ctx.translate(-5,-5);ctx.rotate(br);ctx.lineWidth=8;ctx.strokeStyle='#222';ctx.lineCap='round';ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(0,25);ctx.stroke();ctx.fillStyle=this.col;ctx.beginPath();ctx.arc(0,25,6,0,Math.PI*2);ctx.fill();ctx.restore();
         ctx.fillStyle=dC;ctx.beginPath();ctx.rect(-15,-15,30,45);ctx.fill();
         const lS=this.act==='RUN'?Math.sin(this.anim*0.4)*10:0; ctx.beginPath();ctx.moveTo(-5,30);ctx.lineTo(-8-lS,50);ctx.stroke();ctx.beginPath();ctx.moveTo(5,30);ctx.lineTo(8+lS,50);ctx.stroke();
-        ctx.fillStyle='#ffe0bd';ctx.beginPath();ctx.arc(0,-25,18,0,Math.PI*2);ctx.fill(); ctx.fillStyle='#000'; if(this.shieldBroken)ctx.fillText("x x",-6,-25); else if(this.act==='GRD'){ctx.fillRect(-8,-28,5,2);ctx.fillRect(3,-28,5,2);}else{ctx.beginPath();ctx.arc(-6,-28,2,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.arc(6,-28,2,0,Math.PI*2);ctx.fill();}
+        ctx.fillStyle='#ffe0bd';ctx.beginPath();ctx.arc(0,-25,18,0,Math.PI*2);ctx.fill(); ctx.fillStyle='#000'; 
+        // Face
+        if(this.key==='sk'&&this.skForm) {
+             ctx.fillStyle='#f00'; ctx.beginPath(); ctx.arc(-6,-28,3,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(6,-28,3,0,Math.PI*2); ctx.fill(); // Red Eyes
+        } else {
+             if(this.shieldBroken)ctx.fillText("x x",-6,-25); else if(this.act==='GRD'){ctx.fillRect(-8,-28,5,2);ctx.fillRect(3,-28,5,2);}else{ctx.beginPath();ctx.arc(-6,-28,2,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.arc(6,-28,2,0,Math.PI*2);ctx.fill();}
+        }
+
         ctx.fillStyle=dC; 
         if(this.key==='kou'){ctx.beginPath();ctx.moveTo(-20,-30);ctx.lineTo(0,-50);ctx.lineTo(20,-30);ctx.fill();}
         else if(this.key==='minto'){ctx.beginPath();ctx.arc(0,-30,20,Math.PI,0);ctx.lineTo(20,10);ctx.lineTo(-20,10);ctx.fill();}
         else if(this.key==='kanade'){ctx.beginPath();ctx.arc(0,-30,22,Math.PI,0);ctx.fill();}
         else if(this.key==='shiyou'){ctx.fillRect(-20,-45,40,15);ctx.fillRect(15,-30,5,30);}
         else if(this.key==='noda'){ctx.fillRect(-15,-50,30,25);ctx.fillRect(-5,-50,10,-10);}
-        else if(this.key==='sk'){ if(this.skForm){ctx.beginPath();ctx.moveTo(-10,-35);ctx.lineTo(-15,-55);ctx.lineTo(-5,-40);ctx.fill();ctx.beginPath();ctx.moveTo(10,-35);ctx.lineTo(15,-55);ctx.lineTo(5,-40);ctx.fill();} else {ctx.fillRect(-15,-35,30,5);} }
+        else if(this.key==='sk'){ if(this.skForm){ /*Horns drawn above*/ } else {ctx.fillRect(-15,-35,30,5);} }
 
         if(this.act==='GRD'&&!this.shieldBroken){
-            if(this.key==='sk'&&this.skForm) { ctx.fillStyle='rgba(255,0,255,0.5)'; ctx.beginPath(); ctx.arc(0,0,50,0,Math.PI*2); ctx.fill(); }
+            if(this.key==='sk'&&this.skForm) { ctx.fillStyle='rgba(255,0,0,0.5)'; ctx.beginPath(); ctx.arc(0,0,60,0,Math.PI*2); ctx.fill(); } // Devil Barrier
             else { ctx.fillStyle=`rgba(100,200,255,${this.shieldHP/100})`;ctx.beginPath();ctx.arc(0,0,40,0,Math.PI*2);ctx.fill(); }
         }
         if(this.key==='kanade'&&this.counterActive){ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.beginPath();ctx.arc(0,0,40,0,Math.PI*2);ctx.stroke();}
@@ -550,10 +579,10 @@ class Projectile {
         if(this.o.isMe) {
             let target = this.o === p1 ? p2 : p1;
             if(isHit(hb, target)) {
-                let kb=this.type==='sniper'||this.type==='rocket'?15:(this.type==='beam'?5:8);
+                let kb=this.type==='sniper'||this.type==='rocket'||this.type==='beam'?15:8;
                 conn.send({type:'hit', dmg:this.dmg, kb:kb, dir:this.vx>0?1:-1, stun:20});
                 if(this.type==='rocket') spawnFX(this.x, this.y, 'expl');
-                this.life=0;
+                if(this.type!=='beam') this.life=0; // Beam penetrates
             }
         }
     }
@@ -588,7 +617,7 @@ function loop() {
         me.hitbox.dur--; if(me.hitbox.dur<=0) me.hitbox.act=false;
     }
 
-    if(conn && conn.open) conn.send({ type:'sync', pos:me.pos, vel:me.vel, pct:me.pct, stocks:me.stocks, shp:me.shieldHP, chg:me.charge, act:me.act, fr:me.faceR, np:me.nodaPowered, sb:me.shieldBroken, anim:me.anim, skf:me.skForm, isv:me.isVirus });
+    if(conn && conn.open) conn.send({ type:'sync', pos:me.pos, vel:me.vel, pct:me.pct, stocks:me.stocks, shp:me.shieldHP, chg:me.charge, act:me.act, fr:me.faceR, np:me.nodaPowered, sb:me.shieldBroken, anim:me.anim, skf:me.skForm, isv:me.isVirus, mtsp:me.mintoSpecial });
 
     ctx.fillStyle='#87CEEB'; ctx.fillRect(0,0,cvs.width,cvs.height);
     ctx.save(); ctx.translate(cvs.width/2, cvs.height/2); ctx.scale(cam.z, cam.z); ctx.translate(0, cam.y);
