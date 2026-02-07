@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>Ultimate Smash Online v26: 3-Player</title>
+    <title>Ultimate Smash Online v27</title>
     <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
     <style>
         body { margin: 0; overflow: hidden; background: #111; font-family: 'Segoe UI', sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; color: white; user-select: none; }
@@ -11,16 +11,15 @@
         h1 { font-size: 40px; text-shadow: 0 0 10px #ff0055; margin-bottom: 20px; font-style: italic; }
         .box { background: #222; padding: 20px; border-radius: 10px; border: 2px solid #555; text-align: center; max-width: 500px; width: 90%; }
         input { padding: 10px; font-size: 18px; width: 70%; text-align: center; margin-bottom: 10px; border-radius: 5px; border: none; }
-        button { padding: 10px 30px; font-size: 18px; cursor: pointer; background: #ffe600; border: none; font-weight: bold; margin-top: 10px; border-radius: 50px; transition: 0.2s; }
+        button { padding: 10px 30px; font-size: 18px; cursor: pointer; background: #ffe600; border: none; font-weight: bold; margin-top: 10px; border-radius: 50px; transition: 0.2s; display: block; margin: 10px auto; width: 220px; }
         button:hover { transform: scale(1.05); box-shadow: 0 0 15px #ffe600; }
+        button:disabled { background: #555; color: #888; cursor: default; transform: none; box-shadow: none; }
         .char-select { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-top: 20px; }
         .card { width: 90px; padding: 5px; background: #333; border: 2px solid #555; border-radius: 5px; cursor: pointer; }
         .card.selected { border-color: #ffe600; background: #555; box-shadow: 0 0 10px #ffe600; }
         .icon { width: 40px; height: 40px; border-radius: 50%; margin: 0 auto 5px; border: 3px solid #fff; }
-        
         #hud { position: absolute; bottom: 20px; width: 100%; display: none; justify-content: center; gap: 40px; pointer-events: none; }
         .hud-box { text-align: center; background: rgba(0,0,0,0.6); padding: 10px 15px; border-radius: 10px; min-width: 120px; }
-        .hud-name { font-size: 14px; font-weight: bold; color: #ccc; margin-bottom: 5px; }
         .pct { font-size: 36px; font-weight: 900; }
         .bar-container { width: 100%; height: 4px; background: #444; margin-top: 4px; display: none; }
         .bar-fill { height: 100%; width: 0%; transition: width 0.1s; }
@@ -28,9 +27,6 @@
         .shield-fill { height: 100%; background: #00aaff; width: 100%; }
         .stocks { display: flex; justify-content: center; gap: 4px; margin-top: 5px; }
         .dot { width: 10px; height: 10px; border-radius: 50%; border: 2px solid #fff; }
-        
-        .poison-msg { color: #800080; font-weight: bold; font-size: 12px; display:none; }
-        .freeze-msg { color: #00ffff; font-weight: bold; font-size: 12px; display:none; text-shadow: 0 0 5px blue; }
         #result { display: none; background: rgba(0,0,0,0.85); flex-direction: column; justify-content: center; align-items: center; position: absolute; top:0; left:0; width:100%; height:100%; z-index:200; }
         #win-msg { font-size: 80px; font-weight: 900; font-style: italic; margin-bottom: 30px; text-shadow: 0 0 20px #fff; }
     </style>
@@ -38,15 +34,16 @@
 <body>
 
 <div id="menu" class="overlay">
-    <h1>SMASH ONLINE v26</h1>
+    <h1>SMASH ONLINE v27</h1>
     <div id="step0" class="box">
         <h3>プレイヤー名</h3>
         <input type="text" id="username-input" placeholder="Name" maxlength="10">
         <button onclick="setName()">決定</button>
     </div>
     <div id="step_mode" class="box" style="display:none;">
-        <button onclick="setMode('cpu')" style="background:#3399ff; display:block; margin:10px auto; width:200px;">VS CPU (3人乱闘)</button>
-        <button onclick="setMode('online')" style="background:#ff0066; display:block; margin:10px auto; width:200px;">ONLINE (最大3人)</button>
+        <button onclick="setMode('cpu')" style="background:#3399ff;">VS CPU (ひとり)</button>
+        <button onclick="setMode('2p')" style="background:#ff9900;">ONLINE (2人対戦)</button>
+        <button onclick="setMode('3p')" style="background:#ff0066;">ONLINE (3人乱闘)</button>
     </div>
     <div id="step1" class="box" style="display:none;">
         <h3 id="welcome-msg"></h3><p>ファイター選択</p>
@@ -58,15 +55,15 @@
             <div class="card" onclick="sel('noda',this)"><div class="icon" style="background:#800080"></div>のだ</div>
             <div class="card" onclick="sel('sk',this)"><div class="icon" style="background:#000; border-color:#f00;"></div>sk</div>
         </div>
-        <button onclick="goToNext()" style="margin-top:20px;">次へ</button>
+        <button onclick="goToNext()">次へ</button>
     </div>
     <div id="step2" class="box" style="display:none;">
-        <h3>通信対戦</h3>
+        <h3>通信対戦待機</h3>
         <div style="border-bottom:1px solid #555; padding-bottom:15px;">
             <button onclick="createRoom()">ID発行 (ホスト)</button>
             <div id="my-id-display" style="margin-top:5px; font-size:20px; color:#ffe600; user-select: text;"></div>
             <div id="host-status" style="font-size:12px; color:#aaa;"></div>
-            <button id="start-btn" onclick="hostStartGame()" style="display:none; background:#0f0;">全員揃ったので開始</button>
+            <button id="start-btn" onclick="hostStartGame()" style="display:none; background:#0f0;">GAME START</button>
         </div>
         <div>
             <input type="text" id="dest-id" placeholder="相手のID">
@@ -82,63 +79,28 @@
 </div>
 
 <div id="hud">
-    <div class="hud-box" id="hb1">
-        <div class="hud-name" id="p1n">P1</div>
-        <div class="pct" id="p1p">0%</div>
-        <div class="poison-msg" id="p1_poison">VIRUS!</div>
-        <div class="freeze-msg" id="p1_freeze">STOP!</div>
-        <div class="bar-container" id="p1c_bar"><div class="bar-fill" id="p1c_fill"></div></div>
-        <div class="shield-bar"><div class="shield-fill" id="p1s_fill"></div></div>
-        <div class="stocks" id="p1s"></div>
-    </div>
-    <div class="hud-box" id="hb2">
-        <div class="hud-name" id="p2n">P2</div>
-        <div class="pct" id="p2p">0%</div>
-        <div class="poison-msg" id="p2_poison">VIRUS!</div>
-        <div class="freeze-msg" id="p2_freeze">STOP!</div>
-        <div class="bar-container" id="p2c_bar"><div class="bar-fill" id="p2c_fill"></div></div>
-        <div class="shield-bar"><div class="shield-fill" id="p2s_fill"></div></div>
-        <div class="stocks" id="p2s"></div>
-    </div>
-    <div class="hud-box" id="hb3" style="display:none;">
-        <div class="hud-name" id="p3n">P3</div>
-        <div class="pct" id="p3p">0%</div>
-        <div class="poison-msg" id="p3_poison">VIRUS!</div>
-        <div class="freeze-msg" id="p3_freeze">STOP!</div>
-        <div class="bar-container" id="p3c_bar"><div class="bar-fill" id="p3c_fill"></div></div>
-        <div class="shield-bar"><div class="shield-fill" id="p3s_fill"></div></div>
-        <div class="stocks" id="p3s"></div>
-    </div>
+    <div class="hud-box" id="hb1"><div class="hud-name" id="p1n">P1</div><div class="pct" id="p1p">0%</div><div class="bar-container" id="p1c_bar"><div class="bar-fill" id="p1c_fill"></div></div><div class="shield-bar"><div class="shield-fill" id="p1s_fill"></div></div><div class="stocks" id="p1s"></div></div>
+    <div class="hud-box" id="hb2"><div class="hud-name" id="p2n">P2</div><div class="pct" id="p2p">0%</div><div class="bar-container" id="p2c_bar"><div class="bar-fill" id="p2c_fill"></div></div><div class="shield-bar"><div class="shield-fill" id="p2s_fill"></div></div><div class="stocks" id="p2s"></div></div>
+    <div class="hud-box" id="hb3" style="display:none;"><div class="hud-name" id="p3n">P3</div><div class="pct" id="p3p">0%</div><div class="bar-container" id="p3c_bar"><div class="bar-fill" id="p3c_fill"></div></div><div class="shield-bar"><div class="shield-fill" id="p3s_fill"></div></div><div class="stocks" id="p3s"></div></div>
 </div>
 
 <canvas id="cvs"></canvas>
 
 <script>
-// --- AUDIO ---
+// --- AUDIO (Lightweight) ---
 const AudioSys = {
     ctx: null,
     init: function() { window.AudioContext = window.AudioContext||window.webkitAudioContext; this.ctx = new AudioContext(); },
-    playTone: function(freq, type, dur, vol=0.1) {
+    playTone: function(f, t, d, v=0.1) {
         if(!this.ctx) return; const o=this.ctx.createOscillator(), g=this.ctx.createGain();
-        o.type=type; o.frequency.setValueAtTime(freq, this.ctx.currentTime);
-        g.gain.setValueAtTime(vol, this.ctx.currentTime); g.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime+dur);
-        o.connect(g); g.connect(this.ctx.destination); o.start(); o.stop(this.ctx.currentTime+dur);
-    },
-    playNoise: function(dur) {
-        if(!this.ctx) return; const b=this.ctx.createBuffer(1,this.ctx.sampleRate*dur,this.ctx.sampleRate), d=b.getChannelData(0);
-        for(let i=0;i<b.length;i++) d[i]=Math.random()*2-1;
-        const n=this.ctx.createBufferSource(), g=this.ctx.createGain(); n.buffer=b;
-        g.gain.setValueAtTime(0.2, this.ctx.currentTime); g.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime+dur);
-        n.connect(g); g.connect(this.ctx.destination); n.start();
+        o.type=t; o.frequency.value=f; g.gain.value=v; g.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime+d);
+        o.connect(g); g.connect(this.ctx.destination); o.start(); o.stop(this.ctx.currentTime+d);
     },
     sfx: {
-        jump: ()=>AudioSys.playTone(400,'sine',0.2), hit: ()=>{AudioSys.playNoise(0.1);AudioSys.playTone(150,'sawtooth',0.1,0.2);},
-        blast: ()=>{AudioSys.playNoise(0.5);AudioSys.playTone(50,'square',0.5,0.3);}, guard: ()=>AudioSys.playTone(800,'square',0.05,0.05),
-        reflect: ()=>{AudioSys.playTone(1200,'sine',0.1);AudioSys.playTone(1500,'square',0.1);}, shot: ()=>AudioSys.playTone(600,'triangle',0.1),
-        slash: ()=>AudioSys.playTone(300,'sawtooth',0.3), devil: ()=>AudioSys.playTone(100,'sawtooth',1.0,0.5), laser: ()=>{AudioSys.playTone(800,'sawtooth',0.1,0.05);},
-        mode: ()=>AudioSys.playTone(1000,'sine',0.3), boost: ()=>AudioSys.playTone(1500,'sawtooth',0.5), stop: ()=>AudioSys.playTone(50,'square',1.0,0.5),
-        fart: ()=>{ if(!AudioSys.ctx)return; const o=AudioSys.ctx.createOscillator(),g=AudioSys.ctx.createGain(); o.type='sawtooth'; o.frequency.setValueAtTime(150,AudioSys.ctx.currentTime); o.frequency.linearRampToValueAtTime(50,AudioSys.ctx.currentTime+0.4); g.gain.setValueAtTime(0.3,AudioSys.ctx.currentTime); g.gain.linearRampToValueAtTime(0,AudioSys.ctx.currentTime+0.4); o.connect(g); g.connect(AudioSys.ctx.destination); o.start(); o.stop(AudioSys.ctx.currentTime+0.4); },
-        win: ()=>{if(!AudioSys.ctx)return;[300,400,500,600,800].forEach((f,i)=>setTimeout(()=>AudioSys.playTone(f,'sine',0.4,0.2),i*150));}
+        jump: ()=>AudioSys.playTone(400,'sine',0.1), hit: ()=>AudioSys.playTone(150,'sawtooth',0.1,0.2),
+        blast: ()=>AudioSys.playTone(50,'square',0.3,0.3), guard: ()=>AudioSys.playTone(800,'square',0.05,0.05),
+        shot: ()=>AudioSys.playTone(600,'triangle',0.1), win: ()=>AudioSys.playTone(400,'sine',0.5,0.2),
+        fart: ()=>AudioSys.playTone(100,'sawtooth',0.4,0.3)
     }
 };
 
@@ -155,12 +117,10 @@ const CHARS={
     sk:{name:"sk",col:"#000000",speed:1.0,weight:1.0}
 };
 
-let peer=null, myId=null, isHost=false, gameRunning=false, gameMode='cpu';
-let myName="Player", myChar='kou';
-// Multi-player logic: 1 Host, up to 2 Clients
-let connections = []; // For Host: [connP2, connP3]
-let hostConn = null;  // For Client: connection to Host
-let players = []; // [p1, p2, p3]
+let peer=null, conn=null, myId=null, isHost=false, gameRunning=false;
+let gameMode='cpu', maxPlayers=2; 
+let myName="Player", oppName="CPU", myChar='kou';
+let connections=[], hostConn=null, players=[]; 
 let projectiles=[], particles=[], cam={x:0,y:-100,z:0.65};
 const keys={};
 
@@ -168,356 +128,206 @@ window.onkeydown=e=>{ keys[e.key.toLowerCase()]=true; };
 window.onkeyup=e=>{ keys[e.key.toLowerCase()]=false; };
 
 function setName() { AudioSys.init(); const n=document.getElementById('username-input').value; if(n)myName=n; document.getElementById('step0').style.display='none'; document.getElementById('step_mode').style.display='block'; }
-function setMode(m) { gameMode=m; document.getElementById('step_mode').style.display='none'; document.getElementById('step1').style.display='block'; document.getElementById('welcome-msg').innerText="ようこそ、"+myName+"さん"; }
+function setMode(m) { 
+    gameMode=m; maxPlayers = (m==='3p') ? 3 : 2;
+    document.getElementById('step_mode').style.display='none'; document.getElementById('step1').style.display='block'; document.getElementById('welcome-msg').innerText="ようこそ、"+myName+"さん"; 
+}
 function sel(k,e) { myChar=k; document.querySelectorAll('.card').forEach(c=>c.classList.remove('selected')); e.classList.add('selected'); }
 function goToNext() {
-    if(gameMode==='cpu') {
-        // P1 + 2 CPUs
+    if(gameMode === 'cpu') {
         players = [];
-        players.push(new Fighter(1, myChar, -600, false));
-        players.push(new Fighter(2, getRandomChar(), 0, true));
-        players.push(new Fighter(3, getRandomChar(), 600, true));
-        players[0].isMe = true; players[0].displayName = myName;
-        players[1].displayName = "CPU1"; players[2].displayName = "CPU2";
+        players[0] = new Fighter(1, myChar, -300, false); players[0].isMe=true; players[0].displayName=myName;
+        players[1] = new Fighter(2, 'sk', 300, true); players[1].displayName="CPU";
         startGame();
     } else {
         document.getElementById('step1').style.display='none'; document.getElementById('step2').style.display='block'; initPeer();
     }
 }
-function getRandomChar(){ const k=Object.keys(CHARS); return k[Math.floor(Math.random()*k.length)]; }
 
 // --- NETWORK ---
 function initPeer() { if(peer)return; peer=new Peer(); peer.on('open', id=>myId=id); peer.on('connection', c=>handleIncoming(c)); }
-function createRoom() { if(!peer)initPeer(); setTimeout(()=>{document.getElementById('my-id-display').innerText=myId; document.getElementById('status-msg').innerText="待機中..."; isHost=true;},1000); }
+function createRoom() { if(!peer)initPeer(); setTimeout(()=>{document.getElementById('my-id-display').innerText=myId; document.getElementById('status-msg').innerText="待機中..."; isHost=true; updateHostStatus();},1000); }
 function joinRoom() { if(!peer)initPeer(); setTimeout(()=>{const id=document.getElementById('dest-id').value; if(!id)return alert("ID?"); hostConn=peer.connect(id); isHost=false; setupClient();},500); }
 
-// Host Logic
 function handleIncoming(conn) {
     if(!isHost) return;
+    if(connections.length + 1 >= maxPlayers) { conn.close(); return; } // Full
     connections.push(conn);
-    // Assign Player Num (2 or 3)
     let pNum = connections.length + 1;
-    if(pNum > 3) { conn.close(); return; } // Max 3
-    
-    conn.on('open', () => {
-        conn.send({type:'welcome', pNum: pNum});
-        updateHostStatus();
-    });
+    conn.on('open', () => { conn.send({type:'welcome', pNum: pNum}); updateHostStatus(); });
     conn.on('data', data => {
-        // Relay logic
-        if(data.type === 'info') {
-            // Store player info
-            if(!players[data.pNum-1]) players[data.pNum-1] = {displayName: data.name, key: data.char};
-            else { players[data.pNum-1].displayName = data.name; players[data.pNum-1].key = data.char; }
+        if(data.type==='info') {
+            if(!players[data.pNum-1]) players[data.pNum-1]={};
+            players[data.pNum-1].displayName = data.name; players[data.pNum-1].key = data.char;
             updateHostStatus();
         }
-        if(data.type === 'sync') {
-            // Host receives sync from P2 or P3
-            // Update local object
-            let p = players[data.pNum-1];
-            if(p) applySync(p, data);
-            // Relay to others
-            connections.forEach(c => {
-                if(c !== conn) c.send(data); // Send P2 data to P3, etc.
-            });
-        }
-        if(data.type === 'hit') {
-            // Relay hit event to target
-            let targetIdx = data.targetIdx; // 0, 1, 2
-            let target = players[targetIdx];
-            if(targetIdx === 0) { // I am P1 (Host)
-                target.applyHit(data.dmg, data.kb, data.dir, data.stun, true);
-            } else {
-                // Relay to target client
-                // connections[0] is P2, connections[1] is P3
-                if(connections[targetIdx-1]) connections[targetIdx-1].send(data);
-            }
-        }
-        if(data.type === 'freeze') {
-            players.forEach(p=>p.applyFreeze());
-            connections.forEach(c=>c.send({type:'freeze'}));
+        if(data.type==='sync' || data.type==='hit') {
+            // Relay to other clients
+            connections.forEach(c => { if(c!==conn && c.open) c.send(data); });
+            // Apply to host's local state
+            if(gameRunning) applyPacket(data);
         }
     });
 }
 function updateHostStatus() {
-    let msg = `現在: ${connections.length}人接続`;
-    if(connections.length >= 1) document.getElementById('start-btn').style.display='block';
+    let current = connections.length + 1;
+    let msg = `現在: ${current}/${maxPlayers}人`;
     document.getElementById('host-status').innerText = msg;
+    if(current === maxPlayers) document.getElementById('start-btn').style.display='block';
 }
 function hostStartGame() {
-    // Init P1 (Host)
-    players[0] = new Fighter(1, myChar, -600, false);
-    players[0].displayName = myName; players[0].isMe = true;
-    
-    // Init P2, P3 if exist
-    // Actually we stored placeholder objects in handleIncoming 'info'. Convert to Fighter.
-    for(let i=1; i<3; i++) {
-        if(players[i] && players[i].key) {
-            let info = players[i];
-            players[i] = new Fighter(i+1, info.key, (i===1?0:600), false);
-            players[i].displayName = info.displayName;
-        } else if (i < connections.length+1) {
-            // Should not happen if info exchanged correctly
-        }
+    // Init Host
+    players[0] = new Fighter(1, myChar, -600, false); players[0].displayName=myName; players[0].isMe=true;
+    // Init Clients
+    for(let i=1; i<maxPlayers; i++) {
+        let info = players[i];
+        players[i] = new Fighter(i+1, info.key, (i===1?600:0), false);
+        players[i].displayName = info.displayName;
     }
-    
-    // Send Start to all
+    // Broadcast Start
     let allInfo = players.map(p => ({ pNum: p.pNum, name: p.displayName, char: p.key }));
     connections.forEach(c => c.send({type:'start', players: allInfo}));
     startGame();
 }
-
-// Client Logic
 function setupClient() {
     document.getElementById('status-msg').innerText = "接続成功！";
     hostConn.on('data', data => {
-        if(data.type === 'welcome') {
-            // I am P2 or P3
-            let myNum = data.pNum;
-            // Send my info
-            hostConn.send({type:'info', pNum: myNum, name: myName, char: myChar});
-            document.getElementById('status-msg').innerText = "ホストの開始待ち... (あなたはP"+myNum+")";
-        }
-        if(data.type === 'start') {
-            // Initialize All Players
+        if(data.type==='welcome') { hostConn.send({type:'info', pNum: data.pNum, name: myName, char: myChar}); document.getElementById('status-msg').innerText="ホストの開始待ち..."; }
+        if(data.type==='start') {
             players = [];
             data.players.forEach(info => {
-                let p = new Fighter(info.pNum, info.char, (info.pNum===1?-600:(info.pNum===2?0:600)), false);
-                p.displayName = info.name;
-                if(info.name === myName) p.isMe = true;
+                let p = new Fighter(info.pNum, info.char, 0, false);
+                p.displayName = info.name; if(info.name===myName) p.isMe=true;
                 players[info.pNum-1] = p;
             });
             startGame();
         }
-        if(data.type === 'sync') {
-            // Apply sync for remote players
-            let p = players[data.pNum-1];
-            if(p && !p.isMe) applySync(p, data);
-        }
-        if(data.type === 'hit') {
-            // If I am target, apply hit
-            if(players[data.targetIdx].isMe) players[data.targetIdx].applyHit(data.dmg, data.kb, data.dir, data.stun, true);
-        }
-        if(data.type === 'freeze') {
-            players.forEach(p=>p.applyFreeze());
-        }
+        if(data.type==='sync' || data.type==='hit') { if(gameRunning) applyPacket(data); }
     });
 }
-
-function applySync(p, data) {
-    p.targetPos = data.pos; p.vel = data.vel; p.pct = data.pct; p.stocks = data.stocks;
-    p.shieldHP = data.shp; p.charge = data.chg; p.act = data.act; p.faceR = data.fr;
-    p.nodaPowered = data.np; p.shieldBroken = data.sb; p.anim = data.anim;
-    p.skForm=data.skf; p.isVirus=data.isv; p.mintoSpecial=data.mtsp; 
-    p.kouMode=data.km; p.kouSpeedTimer=data.kst; p.isFrozen=data.frz;
-    if(data.fx) spawnFX(data.fx.x, data.fx.y, data.fx.type);
+function applyPacket(data) {
+    if(data.type==='hit') {
+        let target = players[data.targetIdx];
+        if(target && target.isMe) target.applyHit(data.dmg, data.kb, data.dir, data.stun, true);
+    }
+    if(data.type==='sync') {
+        let p = players[data.pNum-1];
+        if(p && !p.isMe) {
+            p.targetPos = data.pos; p.vel = data.vel; p.pct = data.pct; p.stocks = data.stocks;
+            p.shieldHP = data.shp; p.charge = data.chg; p.act = data.act; p.faceR = data.fr;
+            p.nodaPowered = data.np; p.skForm = data.skf; p.isFrozen = data.frz; p.kouMode = data.km;
+            if(data.fx) spawnFX(data.fx.x, data.fx.y, data.fx.type);
+        }
+    }
 }
-
 function sendClientSync() {
     if(!gameRunning) return;
-    let me = players.find(p => p.isMe);
+    let me = players.find(p=>p.isMe);
     if(!me) return;
     let packet = {
         type:'sync', pNum: me.pNum,
         pos:me.pos, vel:me.vel, pct:me.pct, stocks:me.stocks, shp:me.shieldHP,
-        chg:me.charge, act:me.act, fr:me.faceR, np:me.nodaPowered, sb:me.shieldBroken, anim:me.anim,
-        skf:me.skForm, isv:me.isVirus, mtsp:me.mintoSpecial, km:me.kouMode, kst:me.kouSpeedTimer, frz:me.isFrozen
+        chg:me.charge, act:me.act, fr:me.faceR, np:me.nodaPowered, skf:me.skForm, frz:me.isFrozen, km:me.kouMode
     };
-    if(isHost) {
-        // Host broadcasts to all clients
-        connections.forEach(c => c.send(packet));
-    } else {
-        // Client sends to Host (who relays)
-        hostConn.send(packet);
-    }
+    if(isHost) connections.forEach(c=>c.send(packet)); else hostConn.send(packet);
 }
 
 function startGame() {
     document.getElementById('menu').style.display='none'; document.getElementById('result').style.display='none';
     document.getElementById('hud').style.display='flex'; cvs.style.display='block';
-    
-    // Setup HUD for 3 players
-    for(let i=0; i<3; i++) {
-        if(players[i]) {
-            document.getElementById(`hb${i+1}`).style.display='block';
-            document.getElementById(`p${i+1}n`).innerText = players[i].displayName;
-        } else {
-            document.getElementById(`hb${i+1}`).style.display='none';
-        }
-    }
-    
-    gameRunning = true; AudioSys.sfx.win();
-    setInterval(sendClientSync, 33); // Start Sync Loop
-    loop();
+    for(let i=0; i<3; i++) { if(players[i]) { document.getElementById(`hb${i+1}`).style.display='block'; document.getElementById(`p${i+1}n`).innerText=players[i].displayName; } else document.getElementById(`hb${i+1}`).style.display='none'; }
+    gameRunning=true; AudioSys.sfx.win(); setInterval(sendClientSync, 40); loop();
 }
 
 class Fighter {
     constructor(pNum, key, x, isCPU) {
-        this.pNum = pNum; this.key = key; this.isCPU = isCPU;
-        this.col = CHARS[key].col; this.weight = CHARS[key].weight; this.speed = CHARS[key].speed;
+        this.pNum=pNum; this.key=key; this.isCPU=isCPU;
+        this.col=CHARS[key].col; this.weight=CHARS[key].weight; this.speed=CHARS[key].speed;
         this.pos={x:x,y:-300}; this.vel={x:0,y:0}; this.targetPos={x:x,y:-300};
         this.pct=0; this.stocks=3; this.faceR=(x<0);
         this.act='IDLE'; this.actTime=0; this.stun=0; this.anim=0;
-        this.charge=0; this.maxCharge=120;
-        this.shieldHP=50; this.shieldMax=50; this.shieldBroken=false; this.shieldBreakTimer=0;
-        this.canRecover=true; this.counterActive=false; this.ignorePlat=false;
-        this.nodaPowered=false; this.prevJ=false; this.prevK=false;
-        this.isMe = false;
-        this.jumps = (key==='kou')?6:2;
-        this.skForm=false; this.skTimer=0; this.skCooldown=0; this.isVirus=false; this.virusTimer=0;
-        this.mintoSpecial=0; this.kouMode=false; this.kouSpeedTimer=0;
-        this.isFrozen=false; this.freezeTimer=0; this.kouTimeStopActive=false; this.kouCheckTimer=0;
+        this.charge=0; this.maxCharge=120; this.shieldHP=50; this.shieldMax=50; this.shieldBroken=false;
+        this.canRecover=true; this.nodaPowered=false;
+        // JUMP FIX
+        this.jumps = (key==='kou') ? 6 : 2; 
+        this.prevW = false; // For jump trigger
+        this.prevJ = false; this.prevK = false;
+        
+        this.skForm=false; this.skTimer=0; this.skCooldown=0; this.mintoSpecial=0; this.kouMode=false; this.kouSpeedTimer=0; this.isFrozen=false; this.freezeTimer=0;
     }
 
     update(opponents) {
-        if(this.stocks<=0) return;
-        if(this.isVirus) { this.virusTimer--; if(this.virusTimer%30===0)this.pct+=1; if(this.virusTimer<=0)this.isVirus=false; }
-
-        if(!this.isMe && !this.isCPU) { // Remote player interpolation
+        if(this.stocks<=0)return;
+        if(!this.isMe && !this.isCPU) { // Remote sync
             this.anim++;
             this.pos.x+=(this.targetPos.x-this.pos.x)*0.5; this.pos.y+=(this.targetPos.y-this.pos.y)*0.5;
             return;
         }
 
-        // Logic for Me or CPU
+        // Logic
         if(this.isFrozen) { this.freezeTimer--; if(this.freezeTimer<=0)this.isFrozen=false; return; }
-        if(this.kouTimeStopActive) {
-            this.kouCheckTimer--; 
-            if(Math.abs(this.vel.x)<2 && Math.abs(this.vel.y)<2) { this.kouTimeStopActive=false; this.isFrozen=true; this.freezeTimer=60; }
-            if(this.kouCheckTimer<=0) this.kouTimeStopActive=false;
-        }
         if(this.skCooldown>0) this.skCooldown--;
-        if(this.skForm) { this.skTimer--; if(this.skTimer<=0){this.skForm=false; this.skCooldown=1200; AudioSys.playTone(200,'sine',0.5);} }
+        if(this.skForm) { this.skTimer--; if(this.skTimer<=0){this.skForm=false; this.skCooldown=1200;} }
         if(this.kouSpeedTimer>0) this.kouSpeedTimer--;
         
-        // Find nearest opponent
+        // Find nearest opp
         let opp = null; let minDist = 9999;
-        opponents.forEach(o => {
-            if(o !== this && o.stocks > 0) {
-                let d = Math.abs(this.pos.x - o.pos.x);
-                if(d < minDist) { minDist = d; opp = o; }
-            }
-        });
-        
-        // Kou Pink Hit
-        if(this.key==='kou' && this.kouMode && opp) {
-            if(Math.abs(this.pos.x - opp.pos.x)<50 && Math.abs(this.pos.y - opp.pos.y)<50 && this.anim%10===0) {
-                this.hitOpponent(opp, 2, 2, this.vel.x>0?1:-1, 5);
-                spawnFX(opp.pos.x, opp.pos.y, 'hit');
-            }
-        }
-        
-        // Minto Special
-        if(this.mintoSpecial>0) {
-            this.mintoSpecial--; this.vel.x=0; this.vel.y=0;
-            if(this.mintoSpecial%4===0) {
-                const dir=this.faceR?1:-1;
-                projectiles.push(new Projectile(this, this.pos.x+40*dir, this.pos.y, dir*3, 0, 'beam', 1, 30, 2));
-                AudioSys.sfx.laser();
-            }
-            return;
-        }
+        opponents.forEach(o => { if(o!==this && o.stocks>0) { let d=Math.abs(this.pos.x-o.pos.x); if(d<minDist){minDist=d; opp=o;} } });
 
-        if(this.shieldBroken){this.shieldBreakTimer--;if(this.shieldBreakTimer<=0){this.shieldBroken=false;this.shieldHP=50;}}
-        else if(this.act!=='GRD'&&this.shieldHP<this.shieldMax)this.shieldHP+=0.05;
+        if(this.key==='kou' && this.kouMode && opp && Math.abs(this.pos.x-opp.pos.x)<50 && Math.abs(this.pos.y-opp.pos.y)<50 && this.anim%15===0) {
+            this.hitOpponent(opp, 2, 2, this.vel.x>0?1:-1, 5); spawnFX(opp.pos.x, opp.pos.y, 'hit');
+        }
+        if(this.mintoSpecial>0) { this.mintoSpecial--; this.vel.x=0; if(this.mintoSpecial%5===0){const d=this.faceR?1:-1; projectiles.push(new Projectile(this,this.pos.x+40*d,this.pos.y,d*3,0,'beam',1,30,2)); AudioSys.sfx.shot();} return; }
+
+        if(this.shieldBroken) { this.shieldHP=0; /* Simplification */ } else if(this.act!=='GRD'&&this.shieldHP<this.shieldMax)this.shieldHP+=0.05;
         if(this.stun>0){this.stun--;this.phys();return;}
 
-        // Input
-        let inX=0, up=false, jmp=false, atk=false, smsh=false, grd=false, drop=false;
-        let j_down=false, j_press=false, k_press=false;
-
+        // INPUTS
+        let inX=0, doJump=false, atk=false, smsh=false, grd=false;
         if(this.isCPU && opp) {
-            // CPU AI
-            const dx = opp.pos.x - this.pos.x;
-            if(Math.abs(this.pos.x)>900 || this.pos.y>400) { 
-                inX = this.pos.x<0?1:-1; 
-                if(this.pos.y>100 && this.jumps>0) { up=true; jmp=true; j_press=true; }
-            } else {
-                if(Math.abs(dx)>100) inX=dx>0?1:-1;
-                if(Math.abs(dx)<150 && Math.random()<0.02) j_press=true;
-                if(Math.random()<0.005) grd=true;
-            }
-        } else if (this.isMe) {
-            // Player
-            j_down=keys.j; j_press=keys.j&&!this.prevJ; this.prevJ=keys.j;
-            k_press=keys.k&&!this.prevK; this.prevK=keys.k;
-            if(keys.a)inX=-1; if(keys.d)inX=1;
-            if(keys.w){up=true;jmp=true;}
-            if(keys.s)drop=true;
-            if(k_press)smsh=true;
-            if(keys.z)grd=true;
+            let dx = opp.pos.x - this.pos.x;
+            if(Math.abs(this.pos.x)>900 || this.pos.y>400) { inX=this.pos.x<0?1:-1; if(this.pos.y>100 && this.jumps>0) doJump=true; }
+            else { if(Math.abs(dx)>100) inX=dx>0?1:-1; if(Math.abs(dx)<100 && Math.random()<0.05) atk=true; }
+        } else if(this.isMe) {
+            if(keys.a) inX=-1; if(keys.d) inX=1;
+            // FIX: Jump logic independent of Attack
+            if((keys.w || keys[' ']) && !this.prevW) doJump=true;
+            this.prevW = (keys.w || keys[' ']);
+            
+            if(keys.j && !this.prevJ) atk=true; this.prevJ=keys.j;
+            if(keys.k && !this.prevK) smsh=true; this.prevK=keys.k;
+            if(keys.z) grd=true;
         }
 
         if(inX!==0)this.faceR=inX>0;
-        this.ignorePlat=drop; if(drop&&!this.onG)this.vel.y+=1.0;
-
-        // Commands
-        if(this.key==='kou' && grd && j_down && k_press && this.actTime<=0) {
-            this.kouTimeStopActive=true; this.kouCheckTimer=180; AudioSys.sfx.stop();
-            // Send Freeze to all
-            if(gameMode==='online') { if(conn) conn.send({type:'freeze'}); }
-            else { opponents.forEach(o=>{if(o!==this)o.applyFreeze();}); }
-            atk=false;
+        
+        // Actions
+        if(this.key==='kou' && grd && keys.j && keys.k && this.actTime<=0) {
+            opponents.forEach(o=>{if(o!==this)o.applyFreeze();}); AudioSys.sfx.blast();
+            if(gameMode!=='cpu') { if(isHost) connections.forEach(c=>c.send({type:'freeze'})); else hostConn.send({type:'freeze'}); }
         }
-        if(this.key==='sk' && !this.skForm && this.skCooldown<=0 && grd && j_down && k_press) { this.skForm=true; this.skTimer=900; spawnFX(this.pos.x, this.pos.y, 'dark'); AudioSys.sfx.devil(); atk=false; }
-        if(this.key==='minto' && grd && j_down && k_press && this.actTime<=0) { this.mintoSpecial=240; atk=false; }
-        if(this.key==='shiyou' && grd && j_down && k_press && this.actTime<=0) { this.fireRocket(); atk=false; }
+        if(this.key==='sk' && !this.skForm && this.skCooldown<=0 && grd && keys.j && keys.k) { this.skForm=true; this.skTimer=900; AudioSys.sfx.devil(); }
+        if(this.key==='minto' && grd && keys.j && keys.k) { this.mintoSpecial=240; }
 
-        // Guard
-        if(grd && (this.onG||this.skForm) && this.act!=='ATK' && !this.shieldBroken) {
-            this.act='GRD'; this.vel.x*=0.5; this.counterActive=(this.key==='kanade'||(this.key==='sk'&&!this.skForm));
-        } else { this.counterActive=false; if(this.act==='GRD')this.act='IDLE'; }
-
-        // Jump/Recovery
-        if(this.actTime<=0 && up && j_press) {
-            if(this.jumps > 0) { // Multi jump or normal jump
-                this.vel.y = -16; this.jumps--; this.onG=false; spawnFX(this.pos.x, this.pos.y+40, 'dust'); 
-                if(this.key==='kou') AudioSys.sfx.fart(); else AudioSys.sfx.jump();
-                // Noda has special charge instead of jump attack logic here? 
-                // Previous logic used Up+J for special recovery. Now Kou uses W for jump.
-                // Let's keep Up+J for Noda charge.
-                if(this.key==='noda') { this.doRecovery(); } // Noda charge
-                j_press=false;
-            }
+        if(doJump && this.jumps>0) {
+            this.vel.y = -16; this.jumps--; this.onG=false; spawnFX(this.pos.x, this.pos.y+40, 'dust');
+            if(this.key==='kou') AudioSys.sfx.fart(); else AudioSys.sfx.jump();
+            if(this.key==='noda') this.doRecovery(); // Noda special jump
         }
 
-        // Charge / Attack
-        const canCharge = (this.key==='minto'||this.key==='kanade'||(this.key==='sk'&&this.skForm));
-        if (canCharge) {
-            if (j_down && this.act!=='GRD' && this.actTime<=0) {
-                this.charge=Math.min(this.charge+1, this.maxCharge);
-                if(this.charge%20===0) AudioSys.playTone(200+(this.charge*2), 'sawtooth', 0.05);
-                atk=true;
-            } else if (this.charge>0 && !j_down) {
-                if(this.key==='minto') this.fireMintoShot(); if(this.key==='kanade') this.doKanadePunch(); if(this.key==='sk') this.fireDevilLaser();
-                this.charge=0;
-            }
-        } else {
-            if(this.key==='kou' && j_press && this.actTime<=0) { this.kouMode=!this.kouMode; spawnFX(this.pos.x, this.pos.y, 'hit'); AudioSys.sfx.mode(); atk=false; }
-            else if(j_press && this.actTime<=0 && this.act!=='GRD') atk=true;
-        }
-
-        if (this.actTime <= 0 && this.act !== 'GRD') {
-            let spd = this.speed;
-            if(this.key==='kou') { if(this.kouSpeedTimer>0) spd*=2.0; if(this.kouMode) spd*=1.2; }
+        if(this.actTime<=0) {
+            let spd = this.speed; if(this.key==='kou' && this.kouSpeedTimer>0) spd*=2.0;
             this.vel.x += inX * (this.onG?1.5:0.2) * spd;
-            if (Math.abs(this.vel.x) > 0.5 && this.onG) this.act = 'RUN'; else if(!this.onG) this.act = 'AIR'; else this.act = 'IDLE';
-            
-            // Standard Jump via Space/W logic handled above or via jmp var
-            // Wait, previous code handled jump in input section.
-            
             if(smsh) {
-                if(this.key==='shiyou') this.fireSniper(); else if(this.key==='noda') this.fireNodaSlash(); 
-                else if(this.key==='sk') { if(this.skForm) {} else this.fireVirus(); }
-                else if(this.key==='kou') { if(this.kouSpeedTimer>0){this.pct+=1.5; this.speed+=0.2;} this.kouSpeedTimer=300; AudioSys.sfx.boost(); }
+                if(this.key==='kou') { this.kouSpeedTimer=300; AudioSys.sfx.boost(); }
+                else if(this.key==='sk' && !this.skForm) this.fireVirus();
                 else this.doSmash();
             } else if(atk) {
-                if(!canCharge && this.key!=='kou') {
-                    if(this.key==='shiyou') this.firePistol(); else if(this.key==='sk') { if(this.skForm) this.doDevilDash(); else this.doSKPillar(); }
-                    else this.doJab();
-                } else if (this.key==='kou') { this.doJab(); }
+                if(this.key==='kou') { this.kouMode=!this.kouMode; AudioSys.sfx.mode(); }
+                else if(this.key==='sk') { if(this.skForm) this.doDevilDash(); else this.doSKPillar(); }
+                else this.doJab();
             }
-        } else { this.actTime--; }
+        } else this.actTime--;
 
         this.anim++; this.phys(); this.checkBlast(); this.updateHUD();
     }
@@ -525,266 +335,94 @@ class Fighter {
     phys() {
         this.vel.y += GRAVITY; this.vel.x *= this.onG ? 0.8 : 0.98;
         this.pos.x += this.vel.x; this.pos.y += this.vel.y;
-        this.onG = false; const footY = this.pos.y + 40;
-        if(this.vel.y >= 0 && footY >= GROUND_Y && footY <= GROUND_Y + 40 && Math.abs(this.pos.x) < STAGE_W / 2) {
-            this.vel.y = 0; this.pos.y = GROUND_Y - 40; this.onG = true; 
-            if(this.key!=='kou') this.jumps=2; else if(this.key==='kou') this.jumps=6; // Reset jumps
-            this.canRecover = true;
+        this.onG = false; 
+        if(this.vel.y>=0 && this.pos.y>=GROUND_Y-40 && this.pos.y<=GROUND_Y+10 && Math.abs(this.pos.x)<STAGE_W/2) {
+            this.vel.y=0; this.pos.y=GROUND_Y-40; this.onG=true; 
+            this.jumps=(this.key==='kou')?6:2; 
         }
-        if(!this.ignorePlat && this.vel.y >= 0) {
-            for(let p of PLATFORMS) {
-                if(this.pos.x > p.x - p.w/2 && this.pos.x < p.x + p.w/2 && footY >= p.y - p.h/2 && footY <= p.y + p.h/2 + 20) {
-                    this.vel.y = 0; this.pos.y = p.y - p.h/2 - 40; this.onG = true; 
-                    if(this.key!=='kou') this.jumps=2; else this.jumps=6;
-                    this.canRecover = true;
-                }
+        for(let p of PLATFORMS) {
+            if(this.pos.x>p.x-p.w/2 && this.pos.x<p.x+p.w/2 && this.pos.y+40>=p.y-p.h/2 && this.pos.y+40<=p.y+20 && this.vel.y>=0) {
+                this.vel.y=0; this.pos.y=p.y-p.h/2-40; this.onG=true; 
+                this.jumps=(this.key==='kou')?6:2;
             }
         }
     }
 
-    applyFreeze() { this.isFrozen = true; this.freezeTimer = 180; AudioSys.sfx.stop(); }
     hitOpponent(target, dmg, kb, dir, stun) {
-        if(gameMode==='online') {
-            // Find target index
+        if(gameMode!=='cpu') {
+            // Net send
             let tidx = players.indexOf(target);
-            conn.send({type:'hit', targetIdx: tidx, dmg:dmg, kb:kb, dir:dir, stun:stun});
-        } else {
-            target.applyHit(dmg, kb, dir, stun, true);
+            let packet = {type:'hit', targetIdx: tidx, dmg:dmg, kb:kb, dir:dir, stun:stun};
+            if(isHost) connections.forEach(c=>c.send(packet)); else hostConn.send(packet);
         }
-    }
-
-    doSKPillar() { this.act='ATK'; this.actTime=30; const dir=this.faceR?1:-1; spawnFX(this.pos.x+30*dir, this.pos.y, 'dark'); this.createHitbox(30, -50, 20, 150, 4, 10, 20); AudioSys.playTone(100, 'square', 0.2); }
-    fireVirus() { this.act='ATK'; this.actTime=40; projectiles.push(new Projectile(this, this.pos.x, this.pos.y, 3, 0, 'virus', 1, 15, 60)); projectiles.push(new Projectile(this, this.pos.x, this.pos.y, -3, 0, 'virus', 1, 15, 60)); AudioSys.playTone(800, 'sawtooth', 0.1); }
-    doDevilDash() { this.act='ATK'; this.actTime=30; const dir=this.faceR?1:-1; this.vel.x = 25 * dir; this.createHitbox(0, 0, 100, 100, 3, 10, 20); AudioSys.sfx.blast(); }
-    fireDevilLaser() { this.act='ATK'; this.actTime=40; const dir=this.faceR?1:-1; const dmg = 2 + (this.charge/this.maxCharge)*2; projectiles.push(new Projectile(this, this.pos.x+40*dir, this.pos.y, dir*2, 0, 'beam', dmg, 30, 50)); AudioSys.sfx.blast(); }
-    doRecovery() { // Special Up-B for Noda only now, others use jumps
-        this.act='ATK'; this.actTime=30; this.vel.y=-0.5; this.actTime=25; spawnFX(this.pos.x,this.pos.y,'dark'); this.charge+=20; if(this.charge>=this.maxCharge){this.charge=this.maxCharge;this.nodaPowered=true;spawnFX(this.pos.x,this.pos.y,'dark',true);} AudioSys.sfx.jump();
-    }
-    doJab() {
-        this.act='ATK'; this.actTime=20; let dmg=1.0, kb=2; 
-        if(this.key==='noda'){if(this.nodaPowered){dmg=8;kb=20;this.nodaPowered=false;this.charge=0;spawnFX(this.pos.x,this.pos.y,'dark',true);}else{dmg=2;kb=4;}}
-        if(this.key==='kou'){ dmg=1.0+Math.abs(this.vel.x)*0.5; kb=2+Math.abs(this.vel.x)*0.5; this.createHitbox(0,0,50,50,dmg,kb,10); } 
-        else { this.createHitbox(35,0,60,40,dmg,kb,10); }
-        AudioSys.playTone(300,'square',0.1);
-    }
-    doSmash() {
-        this.act='ATK'; this.actTime=50;
-        setTimeout(()=>{
-            if(this.stun>0)return; let dmg=3, kb=6, pwr=1.0, range=80;
-            if(this.key==='kanade') pwr=1.0+Math.min(this.pct,80)/160; 
-            this.createHitbox(40,-10,range,50,dmg*pwr,kb*pwr,40); AudioSys.playTone(200,'sawtooth',0.2);
-        },150);
-    }
-    fireNodaSlash() { this.act='ATK'; this.actTime=40; const dir=this.faceR?1:-1; let dmg=6,kb=10; if(this.nodaPowered){dmg=15;kb=25;this.nodaPowered=false;this.charge=0;spawnFX(this.pos.x,this.pos.y,'dark',true);} projectiles.push(new Projectile(this,this.pos.x+40*dir,this.pos.y,dir*1.5,0,'slash',dmg,20,40)); AudioSys.sfx.slash(); }
-    fireMintoShot() { this.act='ATK'; this.actTime=45; const dir=this.faceR?1:-1; const dmg=1+(this.charge/this.maxCharge)*4; const sz=10+(this.charge/this.maxCharge)*15; projectiles.push(new Projectile(this,this.pos.x+40*dir,this.pos.y,dir,0,'shot',dmg,sz,30)); AudioSys.sfx.shot(); }
-    doKanadePunch() { this.act='ATK'; this.actTime=40; const ratio=this.charge/this.maxCharge; const rage=1.0+Math.min(this.pct,80)/160; const dmg=(3+ratio*5)*rage; const kb=(8+ratio*10)*rage; const sz=60+(ratio>=1?60:0); spawnFX(this.pos.x,this.pos.y,'fire'); this.createHitbox(40,0,sz,sz,dmg,kb,40); AudioSys.sfx.shot(); }
-    firePistol() { this.act='ATK'; this.actTime=15; const dir=this.faceR?1:-1; projectiles.push(new Projectile(this,this.pos.x+40*dir,this.pos.y-10,dir*1.5,0,'shot',0.8,5,20)); AudioSys.sfx.shot(); }
-    fireSniper() { this.act='ATK'; this.actTime=80; setTimeout(()=>{if(this.stun>0)return; const dir=this.faceR?1:-1; projectiles.push(new Projectile(this,this.pos.x+50*dir,this.pos.y-10,dir*3,0,'sniper',5,8,60)); AudioSys.sfx.blast();},40); }
-    fireRocket() { this.act='ATK'; this.actTime=60; const dir=this.faceR?1:-1; projectiles.push(new Projectile(this,this.pos.x+50*dir,this.pos.y-10,dir*1.0,0,'rocket',15,10,100)); AudioSys.sfx.blast(); }
-
-    createHitbox(ox, oy, w, h, dmg, kb, stun) { const dir=this.faceR?1:-1; this.hitbox = { act:true, owner:this, x:this.pos.x+(ox*dir), y:this.pos.y+oy, w:w, h:h, dmg:dmg, kb:kb, stun:stun, dur:5, dir:dir }; }
-    
-    checkHit(hb) {
-        if(!this.isMe && gameMode==='online') return; 
-        if(this.act === 'GRD') {
-            if(this.skForm) return; 
-            if(this.key === 'kanade' || this.key === 'sk') { 
-                this.act = 'ATK'; this.actTime = 20; spawnFX(this.pos.x, this.pos.y, 'fire'); AudioSys.sfx.reflect();
-                if(hb.isProj) { const dir=this.faceR?1:-1; projectiles.push(new Projectile(this,this.pos.x+40*dir,this.pos.y,dir*2,0,'shot',hb.dmg*2,10,60)); } 
-                else if(hb.owner) { this.hitOpponent(hb.owner, 5, 15, this.faceR?1:-1, 40); }
-                return; 
-            }
-            this.shieldHP -= hb.dmg * 2;
-            if (this.shieldHP <= 0) { this.shieldBroken = true; this.shieldBreakTimer = 600; this.stun = 120; spawnFX(this.pos.x, this.pos.y, 'expl'); } 
-            else { this.pct += hb.dmg * 0.05; spawnFX(this.pos.x, this.pos.y, 'dust'); AudioSys.sfx.guard(); }
-            return;
-        }
-        if(hb.type === 'virus') { this.isVirus=true; this.virusTimer=300; }
-        this.applyHit(hb.dmg, hb.kb, hb.dir, hb.stun, true);
+        target.applyHit(dmg, kb, dir, stun, true);
     }
     applyHit(dmg, kb, dir, stun, forced) {
-        if(!this.isMe && !forced && gameMode==='online') return;
-        if(this.act === 'GRD' && !this.shieldBroken && !this.skForm) { this.shieldHP -= dmg * 2; AudioSys.sfx.guard(); return; }
-        let effectiveKB = kb;
-        if(this.key === 'minto' && this.pct >= 80) effectiveKB *= 2.0;
-        if(this.skForm) effectiveKB *= 0.1;
-        if(this.isFrozen) dmg *= 2.0;
-        this.pct += dmg; let kbVal = 0;
-        if (this.pct < 100) kbVal = (effectiveKB * 0.1) / this.weight; else { let factor = (this.pct - 90) / 10; kbVal = (effectiveKB * factor) / this.weight; }
-        this.vel.x = dir * kbVal * 2; this.vel.y = -kbVal * 1.5; this.stun = stun + kbVal; spawnFX(this.pos.x, this.pos.y, 'hit', kbVal>10);
-        AudioSys.sfx.hit(); this.updateHUD();
+        if(!this.isMe && !forced && gameMode!=='cpu') return;
+        this.pct+=dmg; 
+        let kbVal = (this.pct<100) ? (kb*0.1)/this.weight : (kb*(this.pct-90)/10)/this.weight;
+        this.vel.x = dir*kbVal*2; this.vel.y = -kbVal*1.5; this.stun=stun+kbVal; spawnFX(this.pos.x,this.pos.y,'hit'); AudioSys.sfx.hit();
     }
+    applyFreeze() { this.isFrozen=true; this.freezeTimer=180; AudioSys.sfx.blast(); }
     checkBlast() {
-        if(!this.isMe && gameMode==='online') return;
+        if(!this.isMe && gameMode!=='cpu') return;
         if(Math.abs(this.pos.x)>BLAST.x || Math.abs(this.pos.y)>BLAST.y) {
-            this.stocks--; this.pct=0; this.pos={x:0,y:-400}; this.vel={x:0,y:0};
-            this.shieldHP=50; this.shieldBroken=false; this.canRecover=true; this.nodaPowered=false; this.charge=0;
-            this.skForm=false; this.isVirus=false; this.mintoSpecial=0; this.kouMode=false; this.kouSpeedTimer=0; this.isFrozen=false;
+            this.stocks--; this.pct=0; this.pos={x:0,y:-400}; this.vel={x:0,y:0}; this.jumps=(this.key==='kou')?6:2;
             spawnFX(this.pos.x, this.pos.y, 'expl'); AudioSys.sfx.blast();
-            if(this.stocks<=0) { if(gameMode==='online' && conn && conn.open) conn.send({type:'gameover', win:true}); showResult(false); }
+            if(this.stocks<=0) {
+                // Game Over for this player
+                // In 3P, we don't end game immediately, just remove? For simplicity, end game.
+                document.getElementById('win-msg').innerText = "GAME SET";
+                document.getElementById('result').style.display='flex';
+            }
         }
     }
-    updateHUD() {
-        const id = this.pNum ? 'p'+this.pNum : 'p1';
-        if(document.getElementById(id+'p')) document.getElementById(id+'p').innerText = Math.floor(this.pct)+"%";
-        if(document.getElementById(id+'_poison')) document.getElementById(id+'_poison').style.display = this.isVirus ? 'block' : 'none';
-        if(document.getElementById(id+'_freeze')) document.getElementById(id+'_freeze').style.display = this.isFrozen ? 'block' : 'none';
-        if(document.getElementById(id+'s_fill')) {
-            document.getElementById(id+'s_fill').style.width = (this.shieldHP/this.shieldMax)*100+"%";
-            document.getElementById(id+'s_fill').style.background = this.shieldBroken ? "#555" : "#00aaff";
-        }
-        let bar=document.getElementById(id+'c_bar'), fill=document.getElementById(id+'c_fill');
-        if(!bar) return;
-        if(this.key==='sk') {
-            bar.style.display='block';
-            if(this.skForm) { fill.style.width="100%"; fill.style.background="#f0f"; }
-            else if(this.skCooldown>0) { fill.style.width = ((1200-this.skCooldown)/1200)*100 + "%"; fill.style.background="#555"; }
-            else { fill.style.width="100%"; fill.style.background="#000"; }
-        } else if(this.key==='kou' && this.kouSpeedTimer>0) {
-            bar.style.display='block'; fill.style.width=(this.kouSpeedTimer/300)*100+"%"; fill.style.background="#fff";
-        } else if(this.key==='minto'||this.key==='kanade'||this.key==='noda') {
-            bar.style.display='block'; fill.style.width = (this.charge/this.maxCharge)*100+"%";
-            fill.style.background = (this.key==='kanade'||(this.key==='noda'&&this.nodaPowered))?'#f00':'#0ff';
-        } else { bar.style.display='none'; }
-        let sHtml=""; for(let i=0;i<this.stocks;i++) sHtml+=`<div class="dot" style="background:${this.col}"></div>`;
-        document.getElementById(id+'s').innerHTML=sHtml;
-    }
-    draw() {
-        if(this.stocks<=0) return;
-        ctx.save(); ctx.translate(this.pos.x, this.pos.y); if(!this.faceR) ctx.scale(-1,1);
-        if(this.key==='minto' && this.mintoSpecial>0) { ctx.fillStyle = `rgba(0, 255, 255, ${Math.random()*0.5+0.5})`; ctx.fillRect(20, -10, 1000, 20); }
-        if(this.key==='sk' && this.skForm) ctx.scale(2, 2); 
-        ctx.save(); ctx.scale(this.faceR?1:-1, 1); ctx.fillStyle="white"; ctx.font="bold 16px Arial"; ctx.textAlign="center"; ctx.fillText(this.displayName, 0, (this.key==='sk'&&this.skForm)?-80:-60); ctx.restore();
-        const bob = this.onG ? Math.sin(this.anim*0.2)*2 : 0; ctx.translate(0, bob);
-        let dC=this.col; 
-        if(this.key==='noda'&&this.nodaPowered&&Math.floor(this.anim/4)%2===0) dC="#ff00ff";
-        if(this.key==='sk'&&this.skForm) dC="#220000"; 
-        if(this.key==='kou' && this.kouMode) { ctx.shadowBlur = 20; ctx.shadowColor = '#ff00ff'; if(Math.floor(this.anim/2)%2===0) dC="#ffccff"; } else { ctx.shadowBlur=0; }
-        
-        let br=0, fr=0;
-        if(this.act==='RUN'){const s=Math.sin(this.anim*0.4);br=s*0.8;fr=-s*0.8;} else if(this.act==='ATK'){fr=-1.5;br=0.5;if(this.key==='shiyou')fr=-1.6;if(this.key==='noda')fr=1.5;} else if(this.act==='GRD'){fr=-1.0;br=-1.0;}
-        if(this.key==='shiyou'&&this.act==='ATK'&&this.vel.y<0){ctx.fillStyle='#444';ctx.fillRect(-20,-70,40,10);ctx.fillRect(-2,-70,4,30);ctx.fillStyle='#ccc';if(Math.floor(this.anim/2)%2===0){ctx.fillRect(-25,-75,15,2);ctx.fillRect(10,-75,15,2);}}
-        if(this.key==='kanade' && this.act==='ATK') { ctx.fillStyle='rgba(255,50,0,0.5)'; ctx.beginPath(); ctx.arc(0,0,40+Math.random()*10,0,Math.PI*2); ctx.fill(); }
-        if(this.key==='sk'&&this.skForm) { ctx.fillStyle='#000'; ctx.beginPath(); ctx.moveTo(-10,-30); ctx.lineTo(-70,-80); ctx.lineTo(-50,-20); ctx.lineTo(-30,-10); ctx.fill(); ctx.beginPath(); ctx.moveTo(10,-30); ctx.lineTo(70,-80); ctx.lineTo(50,-20); ctx.lineTo(30,-10); ctx.fill(); ctx.fillStyle='#f00'; ctx.beginPath(); ctx.moveTo(-10,-35); ctx.lineTo(-20,-60); ctx.lineTo(-5,-45); ctx.fill(); ctx.beginPath(); ctx.moveTo(10,-35); ctx.lineTo(20,-60); ctx.lineTo(5,-45); ctx.fill(); }
 
-        ctx.save();ctx.translate(-5,-5);ctx.rotate(br);ctx.lineWidth=8;ctx.strokeStyle='#222';ctx.lineCap='round';ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(0,25);ctx.stroke();ctx.fillStyle=this.col;ctx.beginPath();ctx.arc(0,25,6,0,Math.PI*2);ctx.fill();ctx.restore();
-        ctx.fillStyle=dC;ctx.beginPath();ctx.rect(-15,-15,30,45);ctx.fill();
-        const lS=this.act==='RUN'?Math.sin(this.anim*0.4)*10:0; ctx.beginPath();ctx.moveTo(-5,30);ctx.lineTo(-8-lS,50);ctx.stroke();ctx.beginPath();ctx.moveTo(5,30);ctx.lineTo(8+lS,50);ctx.stroke();
-        ctx.fillStyle='#ffe0bd';ctx.beginPath();ctx.arc(0,-25,18,0,Math.PI*2);ctx.fill(); ctx.fillStyle='#000'; 
-        if(this.isFrozen) ctx.fillText("STOP",-15,-30); 
-        if(this.key==='sk'&&this.skForm) { ctx.fillStyle='#f00'; ctx.beginPath(); ctx.arc(-6,-28,3,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(6,-28,3,0,Math.PI*2); ctx.fill(); } else { if(this.shieldBroken)ctx.fillText("x x",-6,-25); else if(this.act==='GRD'){ctx.fillRect(-8,-28,5,2);ctx.fillRect(3,-28,5,2);}else{ctx.beginPath();ctx.arc(-6,-28,2,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.arc(6,-28,2,0,Math.PI*2);ctx.fill();} }
-
-        ctx.fillStyle=dC; 
-        if(this.key==='kou'){ctx.beginPath();ctx.moveTo(-20,-30);ctx.lineTo(0,-50);ctx.lineTo(20,-30);ctx.fill();}
-        else if(this.key==='minto'){ctx.beginPath();ctx.arc(0,-30,20,Math.PI,0);ctx.lineTo(20,10);ctx.lineTo(-20,10);ctx.fill();}
-        else if(this.key==='kanade'){ctx.beginPath();ctx.arc(0,-30,22,Math.PI,0);ctx.fill();}
-        else if(this.key==='shiyou'){ctx.fillRect(-20,-45,40,15);ctx.fillRect(15,-30,5,30);}
-        else if(this.key==='noda'){ctx.fillRect(-15,-50,30,25);ctx.fillRect(-5,-50,10,-10);}
-        else if(this.key==='sk'){ if(this.skForm){} else {ctx.fillRect(-15,-35,30,5);} }
-
-        if(this.act==='GRD'&&!this.shieldBroken){ if(this.key==='sk'&&this.skForm) { ctx.fillStyle='rgba(255,0,0,0.5)'; ctx.beginPath(); ctx.arc(0,0,60,0,Math.PI*2); ctx.fill(); } else { ctx.fillStyle=`rgba(100,200,255,${this.shieldHP/100})`;ctx.beginPath();ctx.arc(0,0,40,0,Math.PI*2);ctx.fill(); } }
-        if(this.key==='kanade'&&this.counterActive){ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.beginPath();ctx.arc(0,0,40,0,Math.PI*2);ctx.stroke();}
-
-        ctx.save();ctx.translate(5,-5);ctx.rotate(fr);ctx.strokeStyle='#222';ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(0,25);ctx.stroke();
-        if(this.key==='shiyou'){ctx.fillStyle='#444';if(this.act==='ATK'){ctx.fillRect(-5,20,25,6);ctx.fillRect(-5,20,6,10);}}
-        if(this.key==='noda'){ctx.fillStyle='#ddd';ctx.fillRect(-5,10,30,6);ctx.fillStyle='#888';ctx.fillRect(-5,10,6,20);}
-        let hC=this.col; if(this.charge>0){ctx.shadowBlur=10;ctx.shadowColor=this.key==='kanade'?'#f00':'#0ff';hC='#fff';} ctx.fillStyle=hC;ctx.beginPath();ctx.arc(0,25,6+(this.charge/10),0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;ctx.restore();
-        ctx.restore();
-    }
+    // Attacks (Simplified)
+    doJab() { this.act='ATK'; this.actTime=20; this.createHitbox(40,0,60,40,2,4,10); AudioSys.sfx.shot(); }
+    doSmash() { this.act='ATK'; this.actTime=40; setTimeout(()=>{this.createHitbox(40,-10,80,50,5,10,20); AudioSys.sfx.blast();}, 20); }
+    doRecovery() { this.act='ATK'; this.actTime=30; this.vel.y=-20; spawnFX(this.pos.x,this.pos.y,'dark'); this.createHitbox(0,0,60,60,5,10,20); }
+    doSKPillar() { this.act='ATK'; this.actTime=30; spawnFX(this.pos.x,this.pos.y,'dark'); this.createHitbox(40,-50,20,150,4,10,20); AudioSys.sfx.shot(); }
+    fireVirus() { this.act='ATK'; this.actTime=40; projectiles.push(new Projectile(this,this.pos.x,this.pos.y,3,0,'virus',1,15,60)); projectiles.push(new Projectile(this,this.pos.x,this.pos.y,-3,0,'virus',1,15,60)); AudioSys.sfx.shot(); }
+    doDevilDash() { this.act='ATK'; this.actTime=30; this.vel.x=(this.faceR?1:-1)*25; this.createHitbox(0,0,100,100,3,10,20); AudioSys.sfx.blast(); }
+    fireDevilLaser() { this.act='ATK'; this.actTime=40; const d=this.faceR?1:-1; projectiles.push(new Projectile(this,this.pos.x,this.pos.y,d*2,0,'beam',3,30,50)); AudioSys.sfx.blast(); }
+    fireRocket() { this.act='ATK'; this.actTime=60; const d=this.faceR?1:-1; projectiles.push(new Projectile(this,this.pos.x,this.pos.y,d*1,0,'rocket',15,10,100)); AudioSys.sfx.blast(); }
+    
+    createHitbox(ox,oy,w,h,dmg,kb,stun) { this.hitbox={act:true, owner:this, x:this.pos.x+(this.faceR?ox:-ox-w), y:this.pos.y+oy, w:w, h:h, dmg:dmg, kb:kb, stun:stun, dur:5, dir:this.faceR?1:-1}; }
 }
 
 class Projectile {
-    constructor(o, x, y, dx, dy, type, dmg, sz, life) { this.o=o; this.x=x; this.y=y; this.vx=dx*15; this.vy=dy*15; this.type=type; this.dmg=dmg||1; this.sz=sz||5; this.life=life||60; }
-    update() {
-        this.x+=this.vx; this.y+=this.vy; this.life--; 
-        let hb={x:this.x-this.sz, y:this.y-this.sz, w:this.sz*2, h:this.sz*2, isProj:true, dmg:this.dmg, type:this.type}; 
-        players.forEach(p => {
-            if(p !== this.o && p.stocks > 0) {
-                if(isHit(hb, p)) {
-                    if(this.o.isMe || gameMode==='cpu') {
-                        let kb=this.type==='sniper'||this.type==='rocket'||this.type==='beam'?15:8;
-                        this.o.hitOpponent(p, this.dmg, kb, this.vx>0?1:-1, 20);
-                        if(this.type==='rocket') spawnFX(this.x, this.y, 'expl');
-                        if(this.type!=='beam') this.life=0;
-                    }
+    constructor(o,x,y,dx,dy,t,dmg,sz,l) { this.o=o; this.x=x; this.y=y; this.vx=dx*15; this.vy=dy*15; this.type=t; this.dmg=dmg; this.sz=sz; this.life=l; }
+    update() { this.x+=this.vx; this.y+=this.vy; this.life--; if(this.life<=0)return;
+        let hb={x:this.x-this.sz, y:this.y-this.sz, w:this.sz*2, h:this.sz*2};
+        if(this.o.isMe || gameMode==='cpu') {
+            players.forEach(p=>{
+                if(p!==this.o && p.stocks>0 && isHit(hb,p)) {
+                    this.o.hitOpponent(p, this.dmg, 10, this.vx>0?1:-1, 20);
+                    if(this.type!=='beam') this.life=0;
                 }
-            }
-        });
+            });
+        }
     }
-    draw() { 
-        ctx.save(); ctx.translate(this.x, this.y); 
-        if(this.type==='beam') { ctx.fillStyle='#0ff'; ctx.fillRect(-5, -50, 10, 100); } 
-        else if(this.type==='sniper') { ctx.fillStyle='#ff0'; ctx.fillRect(-10, -2, 20, 4); } 
-        else if(this.type==='rocket') { ctx.fillStyle='#333'; ctx.beginPath(); ctx.arc(0,0,8,0,Math.PI*2); ctx.fill(); }
-        else if(this.type==='virus') { ctx.fillStyle='purple'; ctx.globalAlpha=0.7; ctx.beginPath(); ctx.arc(0,0,10,0,Math.PI*2); ctx.fill(); ctx.globalAlpha=1; }
-        else if(this.type==='slash') { ctx.fillStyle='purple'; ctx.beginPath(); ctx.arc(0,0, this.sz, -Math.PI/2, Math.PI/2); ctx.fill(); }
-        else { ctx.fillStyle=this.o.col; ctx.beginPath(); ctx.arc(0,0,this.sz,0,Math.PI*2); ctx.fill(); } 
-        ctx.restore(); 
-    }
+    draw() { ctx.save(); ctx.translate(this.x,this.y); ctx.fillStyle=this.type==='virus'?'purple':'orange'; ctx.beginPath(); ctx.arc(0,0,this.sz,0,Math.PI*2); ctx.fill(); ctx.restore(); }
 }
 
-function spawnFX(x, y, type) { let c='#fff'; if(type==='fire')c='#f00'; if(type==='gas')c='#0f0'; if(type==='dark')c='#a020f0'; for(let i=0;i<8;i++) particles.push({x:x, y:y, vx:(Math.random()-.5)*10, vy:(Math.random()-.5)*10, life:1.0, col:c}); }
+function spawnFX(x,y,t) { if(particles.length>20) return; let c=t==='expl'?'orange':'white'; particles.push({x:x,y:y,life:1.0,col:c}); }
 function isHit(r1, t) { return (r1.x < t.pos.x+20 && r1.x+r1.w > t.pos.x-20 && r1.y < t.pos.y+40 && r1.y+r1.h > t.pos.y-40); }
 
 function loop() {
     if(!gameRunning) return; requestAnimationFrame(loop);
+    players.forEach(p => { if(p.stocks>0) p.update(players); });
+    projectiles.forEach((p,i) => { p.update(); p.draw(); if(p.life<=0) projectiles.splice(i,1); });
+    particles.forEach((p,i) => { p.life-=0.1; ctx.globalAlpha=p.life; ctx.fillStyle=p.col; ctx.beginPath(); ctx.arc(p.x,p.y,5,0,Math.PI*2); ctx.fill(); if(p.life<=0)particles.splice(i,1); });
     
-    // Zoom Camera to fit all players
-    let minX=9999, maxX=-9999, minY=9999, maxY=-9999;
-    let activePlayers = 0;
-    players.forEach(p => {
-        if(p.stocks > 0) {
-            p.update(players);
-            minX = Math.min(minX, p.pos.x); maxX = Math.max(maxX, p.pos.x);
-            minY = Math.min(minY, p.pos.y); maxY = Math.max(maxY, p.pos.y);
-            activePlayers++;
-        }
-    });
-    
-    // Win Condition
-    if(activePlayers <= 1 && players.length > 1) {
-        let winner = players.find(p => p.stocks > 0);
-        showResult(winner ? (winner.isMe ? "VICTORY!" : "DEFEAT...") : "DRAW");
-    }
-
-    // Check Melee Hits
-    players.forEach(attacker => {
-        if(attacker.hitbox && attacker.hitbox.act) {
-            players.forEach(victim => {
-                if(attacker !== victim && victim.stocks > 0 && isHit(attacker.hitbox, victim)) {
-                    // Host or Local handles CPU hits
-                    if(attacker.isMe || gameMode==='cpu') {
-                        attacker.hitOpponent(victim, attacker.hitbox.dmg, attacker.hitbox.kb, attacker.hitbox.dir, attacker.hitbox.stun);
-                        attacker.hitbox.act = false;
-                    }
-                }
-            });
-            attacker.hitbox.dur--; if(attacker.hitbox.dur<=0) attacker.hitbox.act=false;
-        }
-    });
-
-    // Camera Logic
-    let cx = (minX + maxX) / 2; let cy = (minY + maxY) / 2;
-    let dist = Math.max(maxX - minX, maxY - minY) + 400;
-    let zoom = Math.min(1.0, 1500 / dist);
-    cam.x += (cx - cam.x) * 0.1; cam.y += (cy - cam.y) * 0.1; cam.z += (zoom - cam.z) * 0.1;
-
-    ctx.fillStyle='#87CEEB'; ctx.fillRect(0,0,cvs.width,cvs.height);
+    // Draw
+    ctx.globalAlpha=1; ctx.fillStyle='#87CEEB'; ctx.fillRect(0,0,cvs.width,cvs.height);
     ctx.save(); ctx.translate(cvs.width/2, cvs.height/2); ctx.scale(cam.z, cam.z); ctx.translate(-cam.x, -cam.y);
-    ctx.fillStyle='#5d4037'; ctx.fillRect(-1200, 250, 2400, 500); ctx.fillStyle='#76ff03'; ctx.fillRect(-1200, 250, 2400, 20); ctx.fillStyle='#8d6e63'; PLATFORMS.forEach(p=>ctx.fillRect(p.x-p.w/2, p.y-p.h/2, p.w, p.h));
-    
+    ctx.fillStyle='#5d4037'; ctx.fillRect(-1200, 250, 2400, 500); ctx.fillStyle='#76ff03'; ctx.fillRect(-1200, 250, 2400, 20); 
+    PLATFORMS.forEach(p=>ctx.fillRect(p.x-p.w/2, p.y-p.h/2, p.w, p.h));
     players.forEach(p => { if(p.stocks>0) p.draw(); });
-    projectiles.forEach((p,i)=>{ p.update(); p.draw(); if(p.life<=0) projectiles.splice(i,1); });
-    particles.forEach((p,i)=>{ p.x+=p.vx; p.y+=p.vy; p.life-=0.05; ctx.globalAlpha=p.life; ctx.fillStyle=p.col; ctx.beginPath(); ctx.arc(p.x,p.y,5,0,Math.PI*2); ctx.fill(); if(p.life<=0) particles.splice(i,1); });
     ctx.restore();
-}
-
-function showResult(msg) {
-    gameRunning = false;
-    document.getElementById('result').style.display='flex'; document.getElementById('hud').style.display='none';
-    document.getElementById('win-msg').innerText = msg;
-    document.getElementById('win-msg').style.color = msg.includes("VICTORY") ? "#0f0" : "#f00";
-    AudioSys.sfx.win();
 }
 </script>
 </body>
