@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>Ultimate Smash Online v31: Fixed View</title>
+    <title>Ultimate Smash Online v32: Fixed Camera</title>
     <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
     <style>
         body { margin: 0; overflow: hidden; background: #111; font-family: 'Segoe UI', sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; color: white; user-select: none; }
@@ -37,7 +37,7 @@
 <button id="reload-btn" onclick="location.reload()">RELOAD (BUG FIX)</button>
 
 <div id="menu" class="overlay">
-    <h1>SMASH ONLINE v31</h1>
+    <h1>SMASH ONLINE v32</h1>
     <div id="step0" class="box">
         <h3>プレイヤー名</h3>
         <input type="text" id="username-input" placeholder="Name" maxlength="10">
@@ -121,17 +121,8 @@ let connections=[], hostConn=null, players=[];
 let projectiles=[], particles=[];
 const keys={};
 
-// --- FIXED KEY INPUT ---
-window.onkeydown=e=>{ 
-    let k=e.key.toLowerCase(); 
-    if(k===' ') k='w'; // Space = Jump
-    keys[k]=true; 
-};
-window.onkeyup=e=>{ 
-    let k=e.key.toLowerCase(); 
-    if(k===' ') k='w';
-    keys[k]=false; 
-};
+window.onkeydown=e=>{ let k=e.key.toLowerCase(); if(k===' ')k='w'; keys[k]=true; };
+window.onkeyup=e=>{ let k=e.key.toLowerCase(); if(k===' ')k='w'; keys[k]=false; };
 
 function setName() { AudioSys.init(); const n=document.getElementById('username-input').value; if(n)myName=n; document.getElementById('step0').style.display='none'; document.getElementById('step_mode').style.display='block'; }
 function setMode(m) { gameMode=m; maxPlayers=(m==='3p')?3:2; document.getElementById('step_mode').style.display='none'; document.getElementById('step1').style.display='block'; document.getElementById('welcome-msg').innerText="ようこそ、"+myName+"さん"; }
@@ -239,7 +230,7 @@ class Fighter {
         if(this.stocks<=0)return;
         
         // Safety Reset
-        if(Number.isNaN(this.pos.x) || Number.isNaN(this.pos.y) || this.pos.y > 3000) {
+        if(Number.isNaN(this.pos.x) || Number.isNaN(this.pos.y) || Math.abs(this.pos.x) > 5000) {
             this.pos={x:0, y:-300}; this.vel={x:0,y:0};
         }
 
@@ -290,10 +281,7 @@ class Fighter {
             else { if(Math.abs(dx)>100)inX=dx>0?1:-1; if(Math.abs(dx)<100&&Math.random()<0.05)atk=true; }
         } else if(this.isMe) {
             if(keys.a)inX=-1; if(keys.d)inX=1;
-            // FIXED JUMP
-            if((keys.w || keys[' ']) && !this.prevW) doJump=true;
-            this.prevW = (keys.w || keys[' ']);
-            
+            if(keys.w&&!this.prevW)doJump=true; this.prevW=keys.w; // Jump Fix
             if(keys.j&&!this.prevJ)atk=true; this.prevJ=keys.j;
             if(keys.k&&!this.prevK)smsh=true; this.prevK=keys.k;
             if(keys.z)grd=true;
@@ -382,21 +370,21 @@ function isHit(r1,t){return(r1.x<t.pos.x+20&&r1.x+r1.w>t.pos.x-20&&r1.y<t.pos.y+
 
 function loop() {
     if(!gameRunning)return; requestAnimationFrame(loop);
-    players.forEach(p=>{if(p.stocks>0) p.update(players);});
+    players.forEach(p=>{if(p&&p.stocks>0) p.update(players);});
     
-    // Check Active
-    let active=0;
-    players.forEach(p=>{if(p.stocks>0)active++;});
+    let active=0; players.forEach(p=>{if(p.stocks>0)active++;});
     if(active<=1&&players.length>1){let w=players.find(p=>p.stocks>0); showResult(w?(w.isMe?"VICTORY!":"DEFEAT..."):"DRAW");}
 
-    // FIXED CAMERA
     ctx.globalAlpha=1; ctx.fillStyle='#87CEEB'; ctx.fillRect(0,0,cvs.width,cvs.height);
+    // ★ FIXED CAMERA ★
     ctx.save(); 
-    // Always center (0, -100)
-    ctx.translate(cvs.width/2, cvs.height/2); ctx.scale(0.65, 0.65); ctx.translate(0, 150);
+    ctx.translate(cvs.width/2, cvs.height/2); 
+    ctx.scale(0.65, 0.65); 
+    ctx.translate(0, 150);
     
-    ctx.fillStyle='#5d4037'; ctx.fillRect(-3000,250,6000,1500); // Infinite ground visual
-    ctx.fillStyle='#76ff03'; ctx.fillRect(-3000,250,6000,20);
+    // ★ INFINITE GROUND ★
+    ctx.fillStyle='#5d4037'; ctx.fillRect(-5000,250,10000,2000); 
+    ctx.fillStyle='#76ff03'; ctx.fillRect(-5000,250,10000,20);
     PLATFORMS.forEach(p=>ctx.fillRect(p.x-p.w/2,p.y-p.h/2,p.w,p.h));
     
     players.forEach(p=>{if(p.stocks>0)p.draw();});
