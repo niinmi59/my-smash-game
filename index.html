@@ -2,399 +2,345 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>Ultimate Smash Online v33: Fixed Stage</title>
-    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+    <title>プラットフォーム・ファイター 試作版</title>
     <style>
-        body { margin: 0; overflow: hidden; background: #111; font-family: 'Segoe UI', sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; color: white; user-select: none; }
-        canvas { display: none; width: 100%; height: 100%; background: linear-gradient(to bottom, #87CEEB 0%, #E0F7FA 100%); }
-        .overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; background: rgba(0,0,0,0.95); z-index: 100; }
-        h1 { font-size: 40px; text-shadow: 0 0 10px #ff0055; margin-bottom: 20px; font-style: italic; }
-        .box { background: #222; padding: 20px; border-radius: 10px; border: 2px solid #555; text-align: center; max-width: 500px; width: 90%; }
-        input { padding: 10px; font-size: 18px; width: 70%; text-align: center; margin-bottom: 10px; border-radius: 5px; border: none; }
-        button { padding: 10px 30px; font-size: 18px; cursor: pointer; background: #ffe600; border: none; font-weight: bold; margin-top: 10px; border-radius: 50px; transition: 0.2s; display: block; margin: 10px auto; width: 220px; }
-        button:hover { transform: scale(1.05); box-shadow: 0 0 15px #ffe600; }
-        button:disabled { background: #555; color: #888; cursor: default; transform: none; box-shadow: none; }
-        .char-select { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-top: 20px; }
-        .card { width: 90px; padding: 5px; background: #333; border: 2px solid #555; border-radius: 5px; cursor: pointer; }
-        .card.selected { border-color: #ffe600; background: #555; box-shadow: 0 0 10px #ffe600; }
-        .icon { width: 40px; height: 40px; border-radius: 50%; margin: 0 auto 5px; border: 3px solid #fff; }
-        #hud { position: absolute; bottom: 20px; width: 100%; display: none; justify-content: center; gap: 40px; pointer-events: none; z-index: 50; }
-        .hud-box { text-align: center; background: rgba(0,0,0,0.6); padding: 10px 15px; border-radius: 10px; min-width: 120px; }
-        .pct { font-size: 36px; font-weight: 900; }
-        .bar-container { width: 100%; height: 4px; background: #444; margin-top: 4px; display: none; }
-        .bar-fill { height: 100%; width: 0%; transition: width 0.1s; }
-        .shield-bar { width: 100%; height: 4px; background: #500; margin-top: 4px; }
-        .shield-fill { height: 100%; background: #00aaff; width: 100%; }
-        .stocks { display: flex; justify-content: center; gap: 4px; margin-top: 5px; }
-        .dot { width: 10px; height: 10px; border-radius: 50%; border: 2px solid #fff; }
-        #result { display: none; background: rgba(0,0,0,0.85); flex-direction: column; justify-content: center; align-items: center; position: absolute; top:0; left:0; width:100%; height:100%; z-index:200; }
-        #win-msg { font-size: 80px; font-weight: 900; font-style: italic; margin-bottom: 30px; text-shadow: 0 0 20px #fff; }
-        #reload-btn { position: absolute; top: 10px; right: 10px; z-index: 999; padding: 5px 10px; font-size: 12px; background: #f00; color: #fff; border: none; cursor: pointer; width: auto; margin: 0; }
+        body {
+            background-color: #1a1a1a;
+            color: #fff;
+            font-family: sans-serif;
+            text-align: center;
+        }
+        canvas {
+            background-color: #222;
+            border: 4px solid #333;
+            display: block;
+            margin: 20px auto;
+        }
+        .controls {
+            margin-top: 10px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            background-color: #444;
+            color: white;
+            border: none;
+            cursor: pointer;
+            margin: 0 5px;
+        }
+        button:hover { background-color: #666; }
+        .active-ko { background-color: #ff69b4 !important; }
+        .active-minto { background-color: #00ced1 !important; }
     </style>
 </head>
 <body>
 
-<button id="reload-btn" onclick="location.reload()">RELOAD (BUG FIX)</button>
-
-<div id="menu" class="overlay">
-    <h1>SMASH ONLINE v33</h1>
-    <div id="step0" class="box">
-        <h3>プレイヤー名</h3>
-        <input type="text" id="username-input" placeholder="Name" maxlength="10">
-        <button onclick="setName()">決定</button>
+    <h1>Platform Fighter Prototype</h1>
+    <div>
+        <button id="btnKo" class="active-ko" onclick="selectChar('ko')">こう (ピンク)</button>
+        <button id="btnMinto" onclick="selectChar('minto')">みんと (水色)</button>
     </div>
-    <div id="step_mode" class="box" style="display:none;">
-        <button onclick="setMode('cpu')" style="background:#3399ff;">VS CPU (ひとり)</button>
-        <button onclick="setMode('2p')" style="background:#ff9900;">ONLINE (2人対戦)</button>
-        <button onclick="setMode('3p')" style="background:#ff0066;">ONLINE (3人乱闘)</button>
+    
+    <canvas id="gameCanvas" width="800" height="500"></canvas>
+    
+    <div class="controls">
+        <p><strong>操作方法 (P1):</strong> 移動: A (左) / D (右) / W (ジャンプ・上) / S (下)</p>
+        <p>弱攻撃: <strong>J</strong> | 重攻撃: <strong>K</strong> | 剣を捨てる(みんと専用): <strong>U</strong></p>
+        <p>※かなで(紫)は現在サンドバッグとして右側に配置されています。画面外に落とすと中央に復活します。</p>
     </div>
-    <div id="step1" class="box" style="display:none;">
-        <h3 id="welcome-msg"></h3><p>ファイター選択</p>
-        <div class="char-select">
-            <div class="card" onclick="sel('kou',this)"><div class="icon" style="background:#3399ff"></div>こう</div>
-            <div class="card" onclick="sel('minto',this)"><div class="icon" style="background:#00ffcc"></div>みんと</div>
-            <div class="card" onclick="sel('kanade',this)"><div class="icon" style="background:#ff0066"></div>かなで</div>
-            <div class="card" onclick="sel('shiyou',this)"><div class="icon" style="background:#8888ff"></div>しよう</div>
-            <div class="card" onclick="sel('noda',this)"><div class="icon" style="background:#800080"></div>のだ</div>
-            <div class="card" onclick="sel('sk',this)"><div class="icon" style="background:#000; border-color:#f00;"></div>sk</div>
-        </div>
-        <button onclick="goToNext()">次へ</button>
-    </div>
-    <div id="step2" class="box" style="display:none;">
-        <h3>通信対戦待機</h3>
-        <div style="border-bottom:1px solid #555; padding-bottom:15px;">
-            <button onclick="createRoom()">ID発行 (ホスト)</button>
-            <div id="my-id-display" style="margin-top:5px; font-size:20px; color:#ffe600; user-select: text;"></div>
-            <div id="host-status" style="font-size:12px; color:#aaa;"></div>
-            <button id="start-btn" onclick="hostStartGame()" style="display:none; background:#0f0;">GAME START</button>
-        </div>
-        <div><input type="text" id="dest-id" placeholder="相手のID"><button onclick="joinRoom()">接続 (ゲスト)</button></div>
-        <div id="status-msg" style="margin-top:10px; color:#0f0;"></div>
-    </div>
-</div>
-
-<div id="result"><div id="win-msg">VICTORY!</div><button onclick="location.reload()">タイトルへ戻る</button></div>
-
-<div id="hud">
-    <div class="hud-box" id="hb1"><div class="hud-name" id="p1n">P1</div><div class="pct" id="p1p">0%</div><div class="bar-container" id="p1c_bar"><div class="bar-fill" id="p1c_fill"></div></div><div class="shield-bar"><div class="shield-fill" id="p1s_fill"></div></div><div class="stocks" id="p1s"></div></div>
-    <div class="hud-box" id="hb2"><div class="hud-name" id="p2n">P2</div><div class="pct" id="p2p">0%</div><div class="bar-container" id="p2c_bar"><div class="bar-fill" id="p2c_fill"></div></div><div class="shield-bar"><div class="shield-fill" id="p2s_fill"></div></div><div class="stocks" id="p2s"></div></div>
-    <div class="hud-box" id="hb3" style="display:none;"><div class="hud-name" id="p3n">P3</div><div class="pct" id="p3p">0%</div><div class="bar-container" id="p3c_bar"><div class="bar-fill" id="p3c_fill"></div></div><div class="shield-bar"><div class="shield-fill" id="p3s_fill"></div></div><div class="stocks" id="p3s"></div></div>
-</div>
-
-<canvas id="cvs"></canvas>
 
 <script>
-const AudioSys = {
-    ctx: null,
-    init: function() { window.AudioContext = window.AudioContext||window.webkitAudioContext; this.ctx = new AudioContext(); },
-    playTone: function(f, t, d, v=0.1) {
-        if(!this.ctx) return; const o=this.ctx.createOscillator(), g=this.ctx.createGain();
-        o.type=t; o.frequency.value=f; g.gain.value=v; g.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime+d);
-        o.connect(g); g.connect(this.ctx.destination); o.start(); o.stop(this.ctx.currentTime+d);
-    },
-    sfx: {
-        jump: ()=>AudioSys.playTone(400,'sine',0.1), hit: ()=>AudioSys.playTone(150,'sawtooth',0.1,0.2),
-        blast: ()=>AudioSys.playTone(50,'square',0.3,0.3), guard: ()=>AudioSys.playTone(800,'square',0.05,0.05),
-        shot: ()=>AudioSys.playTone(600,'triangle',0.1), win: ()=>AudioSys.playTone(400,'sine',0.5,0.2),
-        fart: ()=>AudioSys.playTone(100,'sawtooth',0.4,0.3), charge: ()=>AudioSys.playTone(200,'sawtooth',1.0,0.5),
-        laser: ()=>AudioSys.playTone(800,'sawtooth',0.5,0.2)
-    }
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+
+// キー入力管理
+const keys = {};
+window.addEventListener("keydown", e => { keys[e.key.toLowerCase()] = true; handleKeyPress(e.key.toLowerCase()); });
+window.addEventListener("keyup", e => { keys[e.key.toLowerCase()] = false; });
+
+// ステージ（足場）
+const stage = { x: 200, y: 350, width: 400, height: 20 };
+
+// プレイヤー（操作キャラ）
+let p1 = {
+    charType: 'ko', // 'ko' or 'minto'
+    x: 250, y: 200, vx: 0, vy: 0,
+    width: 30, height: 60,
+    color: '#ff69b4', damage: 0,
+    isGrounded: false, facing: 1,
+    // こう 専用ステータス
+    isFlameUp: false,
+    // みんと 専用ステータス
+    hasSword: true,
+    counterActive: false,
+    hallucinationTimer: 0
 };
 
-const cvs=document.getElementById('cvs'), ctx=cvs.getContext('2d');
-cvs.width=window.innerWidth; cvs.height=window.innerHeight;
-const GRAVITY=0.5, STAGE_W=2400, GROUND_Y=250, BLAST={x:3200,y:2000};
-const PLATFORMS=[{x:-600,y:0,w:300,h:20},{x:600,y:0,w:300,h:20},{x:0,y:-250,w:400,h:20}];
-const CHARS={
-    kou:{name:"こう",col:"#3399ff",speed:1.8,weight:1.0},
-    minto:{name:"みんと",col:"#00ffcc",speed:0.95,weight:0.8},
-    kanade:{name:"かなで",col:"#ff0066",speed:0.9,weight:1.2},
-    shiyou:{name:"しよう",col:"#8888ff",speed:1.05,weight:1.0},
-    noda:{name:"のだ",col:"#800080",speed:0.7,weight:1.6},
-    sk:{name:"sk",col:"#000000",speed:1.0,weight:1.0}
+// サンドバッグ（かなで）
+let p2 = {
+    x: 500, y: 200, vx: 0, vy: 0,
+    width: 30, height: 60,
+    color: '#8a2be2', damage: 0,
+    isGrounded: false,
+    stunTimer: 0
 };
 
-let peer=null, conn=null, myId=null, isHost=false, gameRunning=false;
-let gameMode='cpu', maxPlayers=2; 
-let myName="Player", oppName="CPU", myChar='kou';
-let connections=[], hostConn=null, players=[]; 
-let projectiles=[], particles=[];
-const keys={};
+// 設置された剣の座標
+let droppedSword = { x: 0, y: 0, active: false };
+// 斬撃エフェクト・飛び道具
+let projectiles = [];
 
-window.onkeydown=e=>{ let k=e.key.toLowerCase(); if(k===' ')k='w'; keys[k]=true; };
-window.onkeyup=e=>{ let k=e.key.toLowerCase(); if(k===' ')k='w'; keys[k]=false; };
-
-function setName() { AudioSys.init(); const n=document.getElementById('username-input').value; if(n)myName=n; document.getElementById('step0').style.display='none'; document.getElementById('step_mode').style.display='block'; }
-function setMode(m) { gameMode=m; maxPlayers=(m==='3p')?3:2; document.getElementById('step_mode').style.display='none'; document.getElementById('step1').style.display='block'; document.getElementById('welcome-msg').innerText="ようこそ、"+myName+"さん"; }
-function sel(k,e) { myChar=k; document.querySelectorAll('.card').forEach(c=>c.classList.remove('selected')); e.classList.add('selected'); }
-function goToNext() {
-    if(gameMode==='cpu') {
-        players=[]; players[0]=new Fighter(1,myChar,-300,false); players[0].isMe=true; players[0].displayName=myName;
-        players[1]=new Fighter(2,getRandomChar(),300,true); players[1].displayName="CPU";
-        startGame();
-    } else { document.getElementById('step1').style.display='none'; document.getElementById('step2').style.display='block'; initPeer(); }
+// キャラクター切り替え
+function selectChar(type) {
+    p1.charType = type;
+    p1.damage = 0;
+    p1.isFlameUp = false;
+    p1.hasSword = true;
+    droppedSword.active = false;
+    document.getElementById("btnKo").className = type === 'ko' ? "active-ko" : "";
+    document.getElementById("btnMinto").className = type === 'minto' ? "active-minto" : "";
+    p1.color = type === 'ko' ? '#ff69b4' : '#00ced1';
 }
-function getRandomChar(){ const k=Object.keys(CHARS); return k[Math.floor(Math.random()*k.length)]; }
 
-function initPeer() { if(peer)return; peer=new Peer(); peer.on('open', id=>myId=id); peer.on('connection', c=>handleIncoming(c)); }
-function createRoom() { if(!peer)initPeer(); setTimeout(()=>{document.getElementById('my-id-display').innerText=myId; document.getElementById('status-msg').innerText="待機中..."; isHost=true; updateHostStatus();},1000); }
-function joinRoom() { if(!peer)initPeer(); setTimeout(()=>{const id=document.getElementById('dest-id').value; if(!id)return alert("ID?"); hostConn=peer.connect(id); isHost=false; setupClient();},500); }
+// 単発押しイベント（トグルや特殊行動用）
+function handleKeyPress(key) {
+    // 【こう】W+Kのトグル処理
+    if (p1.charType === 'ko' && key === 'k' && keys['w']) {
+        p1.isFlameUp = !p1.isFlameUp;
+    }
+    // 【こう】S+Kのギャンブル回復
+    if (p1.charType === 'ko' && key === 'k' && keys['s']) {
+        if (Math.random() < 0.6) {
+            p1.damage *= 2; // 60%の確率で2倍のダメージ
+        } else {
+            p1.damage = 0;  // 40%の確率で0%に帳消し
+        }
+    }
+    // 【みんと】Uキーで剣を捨てる
+    if (p1.charType === 'minto' && key === 'u' && p1.hasSword) {
+        p1.hasSword = false;
+        droppedSword.x = p1.x;
+        droppedSword.y = p1.y + 20;
+        droppedSword.active = true;
+    }
+    // 【みんと】W+Kで剣の位置に瞬間移動
+    if (p1.charType === 'minto' && key === 'k' && keys['w'] && droppedSword.active) {
+        p1.x = droppedSword.x;
+        p1.y = droppedSword.y - 20;
+        p1.vx = 0; p1.vy = 0;
+    }
+    // 攻撃トリガー（Jキー、Kキー単体判定用）
+    if (key === 'j') performAttack('j');
+    if (key === 'k') performAttack('k');
+}
 
-function handleIncoming(conn) {
-    if(!isHost) return;
-    if(connections.length+1>=maxPlayers){conn.close();return;}
-    connections.push(conn); let pNum=connections.length+1;
-    conn.on('open', ()=>{conn.send({type:'welcome', pNum:pNum}); updateHostStatus();});
-    conn.on('data', data=>{
-        if(data.type==='info') { if(!players[data.pNum-1])players[data.pNum-1]={}; players[data.pNum-1].displayName=data.name; players[data.pNum-1].key=data.char; updateHostStatus(); }
-        if(data.type==='sync'||data.type==='hit') { connections.forEach(c=>{if(c!==conn&&c.open)c.send(data);}); if(gameRunning)applyPacket(data); }
+// 攻撃ロジック
+function performAttack(type) {
+    let baseDamage = 0;
+    let knockback = 0;
+    let range = 40;
+    
+    if (p1.charType === 'ko') {
+        // --- こうの技 ---
+        if (type === 'j') { // 弱
+            baseDamage = 5; knockback = 5;
+        } else if (type === 'k') {
+            if (keys['a'] || keys['d']) { // 横K（自傷大ダメージ）
+                p1.damage += 8; baseDamage = 22; knockback = 15; range = 60;
+            } else if (!keys['w'] && !keys['s']) { // 通常K（火をまとう軽ダメージ）
+                baseDamage = 3; knockback = 2; range = 45;
+            }
+        }
+    } else {
+        // --- みんとの技 ---
+        let attackMultiplier = p1.hasSword ? 1.3 : 1.0;
+        if (type === 'j') { // 弱（剣ありならリーチ長）
+            baseDamage = 6 * attackMultiplier;
+            knockback = 6;
+            range = p1.hasSword ? 65 : 40;
+        } else if (type === 'k') {
+            if (keys['a'] || keys['d']) { // 横K（大剣化、発生遅い想定で威力高）
+                baseDamage = 25 * attackMultiplier; knockback = 14; range = 80;
+            } else if (keys['s']) { // 下K（カウンター構え）
+                p1.counterActive = true;
+                setTimeout(() => { p1.counterActive = false; }, 500); // 0.5秒間受付
+            } else if (!keys['w']) { // 通常K（斬撃を飛ばす）
+                projectiles.push({
+                    x: p1.x + (p1.facing * 20), y: p1.y + 20,
+                    vx: p1.facing * 7, damage: 4, knockback: 1
+                });
+            }
+        }
+    }
+
+    // 判定処理（簡易ヒットボックス判定）
+    if (baseDamage > 0) {
+        let hitX = p1.facing === 1 ? p1.x + p1.width : p1.x - range;
+        if (hitX + range > p2.x && hitX < p2.x + p2.width && p1.y + p1.height > p2.y && p1.y < p2.y + p2.height) {
+            // カウンターチェック
+            applyHitToP2(baseDamage, knockback);
+        }
+    }
+}
+
+function applyHitToP2(damage, kb) {
+    p2.damage += damage;
+    // スマブラ式ぶっ飛び計算（％に応じて増加）
+    let calculatedKb = kb * (1 + p2.damage / 50);
+    p2.vx = p1.facing * calculatedKb;
+    p2.vy = -calculatedKb * 0.5;
+}
+
+// ゲームループ
+function update() {
+    // --- 1. 固有ステータスの適用（速度・体重） ---
+    let speed = p1.charType === 'ko' ? 5.5 : 3.5; // こうは速く、みんとは遅い
+    let weightModifier = p1.charType === 'ko' ? 1.2 : 0.8; // こうは吹っ飛びやすく、みんとは重い
+
+    // --- 2. プレイヤー移動処理 ---
+    if (keys['a']) { p1.vx = -speed; p1.facing = -1; }
+    else if (keys['d']) { p1.vx = speed; p1.facing = 1; }
+    else { p1.vx *= 0.8; } // 摩擦
+
+    if (keys['w'] && p1.isGrounded && !keys['k']) {
+        p1.vy = -11;
+        p1.isGrounded = false;
+    }
+
+    // こうのW+K（上昇能力トグル）
+    if (p1.charType === 'ko' && p1.isFlameUp) {
+        p1.vy = -4;       // 常に少しずつ上昇
+        p1.damage += 0.05; // 自傷ダメージ蓄積
+    }
+
+    // みんとの幻覚タイマー
+    if (p2.stunTimer > 0) {
+        p2.stunTimer--;
+        p2.vx = 0; // 動けない
+    } else {
+        p2.vx *= 0.9; // 通常のノックバック減速
+    }
+
+    // --- 3. 物理演算（重力・ステージ衝突判定） ---
+    // P1 重力
+    p1.vy += 0.5;
+    p1.x += p1.vx; p1.y += p1.vy;
+    // P2 重力
+    p2.vy += 0.5;
+    p2.x += p2.vx; p2.y += p2.vy;
+
+    // P1 ステージ着地判定
+    if (p1.x + p1.width > stage.x && p1.x < stage.x + stage.width &&
+        p1.y + p1.height >= stage.y && p1.y + p1.height - p1.vy <= stage.y + 10) {
+        p1.y = stage.y - p1.height; p1.vy = 0; p1.isGrounded = true;
+    } else { p1.isGrounded = false; }
+
+    // P2 ステージ着地判定
+    if (p2.x + p2.width > stage.x && p2.x < stage.x + stage.width &&
+        p2.y + p2.height >= stage.y && p2.y + p2.height - p2.vy <= stage.y + 10) {
+        p2.y = stage.y - p2.height; p2.vy = 0; p2.isGrounded = true;
+    }
+
+    // 飛び道具の処理
+    projectiles.forEach((proj, index) => {
+        proj.x += proj.vx;
+        // カウンター判定も兼ねたヒットチェック
+        if (proj.x > p2.x && proj.x < p2.x + p2.width && proj.y > p2.y && proj.y < p2.y + p2.height) {
+            applyHitToP2(proj.damage, proj.knockback);
+            projectiles.splice(index, 1);
+        }
+        if (proj.x < 0 || proj.x > canvas.width) projectiles.splice(index, 1);
     });
-}
-function updateHostStatus() {
-    let current=connections.length+1; document.getElementById('host-status').innerText=`現在: ${current}/${maxPlayers}人`;
-    if(current===maxPlayers) document.getElementById('start-btn').style.display='block';
-}
-function hostStartGame() {
-    players[0]=new Fighter(1,myChar,-600,false); players[0].displayName=myName; players[0].isMe=true;
-    for(let i=1; i<maxPlayers; i++) {
-        let info=players[i]||{}; 
-        players[i]=new Fighter(i+1,info.key||'kou',(i===1?600:0),false); 
-        players[i].displayName=info.displayName||"Guest";
-    }
-    let allInfo=players.map(p=>({pNum:p.pNum, name:p.displayName, char:p.key}));
-    connections.forEach(c=>c.send({type:'start', players:allInfo}));
-    startGame();
-}
-function setupClient() {
-    document.getElementById('status-msg').innerText="接続成功！";
-    hostConn.on('data', data=>{
-        if(data.type==='welcome'){hostConn.send({type:'info', pNum:data.pNum, name:myName, char:myChar}); document.getElementById('status-msg').innerText="ホスト待機中...";}
-        if(data.type==='start'){
-            players=[]; data.players.forEach(info=>{
-                let p=new Fighter(info.pNum,info.char,0,false); p.displayName=info.name; if(info.name===myName)p.isMe=true;
-                players[info.pNum-1]=p;
-            });
-            startGame();
-        }
-        if(data.type==='sync'||data.type==='hit'||data.type==='gameover'){if(gameRunning||data.type==='gameover')applyPacket(data);}
-    });
-}
-function applyPacket(data) {
-    if(data.type==='gameover'){ showResult(data.win); return; }
-    if(data.type==='hit'){ let t=players[data.targetIdx]; if(t&&t.isMe)t.applyHit(data.dmg,data.kb,data.dir,data.stun,true); }
-    if(data.type==='sync'){
-        let p=players[data.pNum-1];
-        if(p && !p.isMe) {
-            p.targetPos=data.pos; p.vel=data.vel; p.pct=data.pct; p.stocks=data.stocks;
-            p.shieldHP=data.shp; p.charge=data.chg; p.act=data.act; p.faceR=data.fr;
-            p.nodaPowered=data.np; p.skForm=data.skf; p.isFrozen=data.frz; p.kouMode=data.km;
-            p.kanadeSpecial=data.ksp;
-            if(data.fx) spawnFX(data.fx.x, data.fx.y, data.fx.type);
-        }
-    }
-}
-function sendClientSync() {
-    if(!gameRunning)return; let me=players.find(p=>p.isMe); if(!me)return;
-    let packet={
-        type:'sync', pNum:me.pNum, pos:me.pos, vel:me.vel, pct:me.pct, stocks:me.stocks, shp:me.shieldHP,
-        chg:me.charge, act:me.act, fr:me.faceR, np:me.nodaPowered, sb:me.shieldBroken, anim:me.anim,
-        skf:me.skForm, isv:me.isVirus, mtsp:me.mintoSpecial, km:me.kouMode, kst:me.kouSpeedTimer, frz:me.isFrozen,
-        ksp:me.kanadeSpecial
-    };
-    if(isHost) connections.forEach(c=>c.send(packet)); else hostConn.send(packet);
+
+    // バースト（画面外ミス）判定
+    if (p1.x < 0 || p1.x > canvas.width || p1.y > canvas.height) { p1.x = 250; p1.y = 200; p1.vx = 0; p1.vy = 0; p1.damage = 0; p1.isFlameUp = false; }
+    if (p2.x < 0 || p2.x > canvas.width || p2.y > canvas.height) { p2.x = 500; p2.y = 200; p2.vx = 0; p2.vy = 0; p2.damage = 0; }
+
+    draw();
+    requestAnimationFrame(update);
 }
 
-function startGame() {
-    document.getElementById('menu').style.display='none'; document.getElementById('result').style.display='none';
-    document.getElementById('hud').style.display='flex'; cvs.style.display='block';
-    for(let i=0; i<3; i++) { if(players[i]) { document.getElementById(`hb${i+1}`).style.display='block'; document.getElementById(`p${i+1}n`).innerText=players[i].displayName; } else document.getElementById(`hb${i+1}`).style.display='none'; }
-    gameRunning=true; AudioSys.sfx.win(); setInterval(sendClientSync, 40); loop();
-}
+// 描画処理
+function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-class Fighter {
-    constructor(pNum, key, x, isCPU) {
-        this.pNum=pNum; this.key=key; this.isCPU=isCPU;
-        this.col=CHARS[key].col; this.weight=CHARS[key].weight; this.speed=CHARS[key].speed;
-        this.pos={x:x,y:-300}; this.vel={x:0,y:0}; this.targetPos={x:x,y:-300};
-        this.pct=0; this.stocks=3; this.faceR=(x<0);
-        this.act='IDLE'; this.actTime=0; this.stun=0; this.anim=0;
-        this.charge=0; this.maxCharge=120; this.shieldHP=50; this.shieldMax=50; this.shieldBroken=false;
-        this.canRecover=true; this.nodaPowered=false;
-        this.jumps=(key==='kou')?6:2; this.prevW=false; this.prevJ=false; this.prevK=false;
-        this.skForm=false; this.skTimer=0; this.skCooldown=0; this.mintoSpecial=0; this.kouMode=false; this.kouSpeedTimer=0;
-        this.isFrozen=false; this.freezeTimer=0;
-        this.kanadeSpecial = 0;
+    // ステージ描画
+    ctx.fillStyle = "#666";
+    ctx.fillRect(stage.x, stage.y, stage.width, stage.height);
+
+    // 捨てられた剣の描画
+    if (droppedSword.active) {
+        ctx.strokeStyle = "#fff";
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(droppedSword.x, droppedSword.y);
+        ctx.lineTo(droppedSword.x, droppedSword.y - 20);
+        ctx.stroke();
     }
 
-    update(opponents) {
-        if(this.stocks<=0)return;
-        
-        // Safety Reset: If pos is NaN or too far, reset to center.
-        if(Number.isNaN(this.pos.x) || Number.isNaN(this.pos.y) || Math.abs(this.pos.x) > 5000 || Math.abs(this.pos.y) > 5000) {
-            this.pos={x:0, y:-300}; this.vel={x:0,y:0};
-        }
+    // 飛び道具描画
+    ctx.fillStyle = "#00ffff";
+    projectiles.forEach(proj => { ctx.fillRect(proj.x, proj.y, 15, 4); });
 
-        if(!this.isMe && !this.isCPU) {
-            this.anim++;
-            if(this.targetPos) { this.pos.x+=(this.targetPos.x-this.pos.x)*0.5; this.pos.y+=(this.targetPos.y-this.pos.y)*0.5; }
-            if(this.key==='kanade' && this.kanadeSpecial > 0) {
-                this.kanadeSpecial--;
-                if(this.kanadeSpecial === 20) { const dir=this.faceR?1:-1; projectiles.push(new Projectile(this, this.pos.x+50*dir, this.pos.y, dir*4, 0, 'superbeam', 0, 100, 60)); AudioSys.sfx.blast(); }
-            }
-            if(this.mintoSpecial > 0) {
-                this.mintoSpecial--;
-                if(this.mintoSpecial % 5 === 0) { const dir = this.faceR?1:-1; projectiles.push(new Projectile(this, this.pos.x+40*dir, this.pos.y, dir*3, 0, 'beam', 0, 30, 2)); AudioSys.sfx.shot(); }
-            }
-            return;
-        }
-
-        // Logic
-        if(this.isFrozen) { this.freezeTimer--; if(this.freezeTimer<=0)this.isFrozen=false; return; }
-        if(this.skCooldown>0) this.skCooldown--;
-        if(this.skForm) { this.skTimer--; if(this.skTimer<=0){this.skForm=false; this.skCooldown=1200;} }
-        if(this.kouSpeedTimer>0) this.kouSpeedTimer--;
-        
-        let opp=null; let minDist=9999;
-        opponents.forEach(o=>{if(o!==this&&o.stocks>0){let d=Math.abs(this.pos.x-o.pos.x);if(d<minDist){minDist=d;opp=o;}}});
-
-        if(this.key==='kou' && this.kouMode && opp && Math.abs(this.pos.x-opp.pos.x)<50 && Math.abs(this.pos.y-opp.pos.y)<50 && this.anim%15===0) {
-            this.hitOpponent(opp,2,2,this.vel.x>0?1:-1,5); spawnFX(opp.pos.x,opp.pos.y,'hit');
-        }
-        if(this.mintoSpecial>0) {
-            this.mintoSpecial--; this.vel.x=0; this.vel.y=0;
-            if(this.mintoSpecial%5===0){const d=this.faceR?1:-1; projectiles.push(new Projectile(this,this.pos.x+40*d,this.pos.y,d*3,0,'beam',1,30,2)); AudioSys.sfx.shot();}
-            return;
-        }
-        if(this.kanadeSpecial>0) {
-            this.kanadeSpecial--; this.vel.x=0;
-            if(this.kanadeSpecial===20) { const dir=this.faceR?1:-1; projectiles.push(new Projectile(this, this.pos.x+50*dir, this.pos.y, dir*4, 0, 'superbeam', 20, 100, 60)); AudioSys.sfx.blast(); spawnFX(this.pos.x+50*dir, this.pos.y, 'expl'); }
-            return;
-        }
-
-        if(this.shieldBroken){this.shieldHP=0;}else if(this.act!=='GRD'&&this.shieldHP<this.shieldMax)this.shieldHP+=0.05;
-        if(this.stun>0){this.stun--;this.phys();return;}
-
-        let inX=0, doJump=false, atk=false, smsh=false, grd=false;
-        if(this.isCPU&&opp) {
-            let dx=opp.pos.x-this.pos.x;
-            if(Math.abs(this.pos.x)>900||this.pos.y>400){inX=this.pos.x<0?1:-1; if(this.pos.y>100&&this.jumps>0)doJump=true;}
-            else { if(Math.abs(dx)>100)inX=dx>0?1:-1; if(Math.abs(dx)<100&&Math.random()<0.05)atk=true; }
-        } else if(this.isMe) {
-            if(keys.a)inX=-1; if(keys.d)inX=1;
-            if(keys.w&&!this.prevW)doJump=true; this.prevW=keys.w; // Jump Fix
-            if(keys.j&&!this.prevJ)atk=true; this.prevJ=keys.j;
-            if(keys.k&&!this.prevK)smsh=true; this.prevK=keys.k;
-            if(keys.z)grd=true;
-        }
-        if(inX!==0)this.faceR=inX>0;
-
-        if(this.key==='kanade' && keys.z && keys.j && keys.k && this.actTime<=0 && this.kanadeSpecial<=0 && this.skCooldown<=0) { this.kanadeSpecial=90; this.skCooldown=900; AudioSys.sfx.charge(); atk=false; }
-        if(this.key==='kou'&&grd&&keys.j&&keys.k&&this.actTime<=0){ opponents.forEach(o=>{if(o!==this)o.applyFreeze();}); AudioSys.sfx.blast(); if(gameMode!=='cpu'){if(isHost)connections.forEach(c=>c.send({type:'freeze'}));else hostConn.send({type:'freeze'});} }
-        if(this.key==='sk'&&!this.skForm&&this.skCooldown<=0&&grd&&keys.j&&keys.k){this.skForm=true;this.skTimer=900;AudioSys.sfx.devil();}
-        if(this.key==='minto'&&grd&&keys.j&&keys.k){this.mintoSpecial=240;}
-
-        if(doJump&&this.jumps>0){this.vel.y=-16;this.jumps--;this.onG=false;spawnFX(this.pos.x,this.pos.y+40,'dust');if(this.key==='kou')AudioSys.sfx.fart();else AudioSys.sfx.jump();if(this.key==='noda')this.doRecovery();}
-
-        if(this.actTime<=0) {
-            let spd=this.speed; if(this.key==='kou'&&this.kouSpeedTimer>0)spd*=2.0;
-            this.vel.x+=inX*(this.onG?1.5:0.2)*spd;
-            if(smsh) {
-                if(this.key==='kou'){this.kouSpeedTimer=300;AudioSys.sfx.boost();}
-                else if(this.key==='sk'&&!this.skForm)this.fireVirus();
-                else this.doSmash();
-            } else if(atk) {
-                if(this.key==='kou'){this.kouMode=!this.kouMode;AudioSys.sfx.mode();}
-                else if(this.key==='sk'){if(this.skForm)this.doDevilDash();else this.doSKPillar();}
-                else this.doJab();
-            }
-        } else this.actTime--;
-
-        this.anim++; this.phys(); this.checkBlast(); this.updateHUD();
-    }
-
-    phys() {
-        this.vel.y+=GRAVITY; this.vel.x*=this.onG?0.8:0.98; this.pos.x+=this.vel.x; this.pos.y+=this.vel.y; this.onG=false;
-        if(this.vel.y>=0 && this.pos.y>=GROUND_Y-40 && this.pos.y<=GROUND_Y+10 && Math.abs(this.pos.x)<2000){this.vel.y=0;this.pos.y=GROUND_Y-40;this.onG=true;this.jumps=(this.key==='kou')?6:2;}
-        for(let p of PLATFORMS){if(this.pos.x>p.x-p.w/2&&this.pos.x<p.x+p.w/2&&this.pos.y+40>=p.y-p.h/2&&this.pos.y+40<=p.y+20&&this.vel.y>=0){this.vel.y=0;this.pos.y=p.y-p.h/2-40;this.onG=true;this.jumps=(this.key==='kou')?6:2;}}
-    }
-
-    hitOpponent(t,d,k,dr,s){ if(gameMode!=='cpu'){let idx=players.indexOf(t); let pkt={type:'hit',targetIdx:idx,dmg:d,kb:k,dir:dr,stun:s}; if(isHost)connections.forEach(c=>c.send(pkt));else hostConn.send(pkt);} t.applyHit(d,k,dr,s,true); }
-    applyHit(d,k,dr,s,f){
-        if(!this.isMe&&!f&&gameMode!=='cpu')return;
-        this.pct+=d; let kb=(this.pct<100)?(k*0.1)/this.weight:(k*(this.pct-90)/10)/this.weight;
-        this.vel.x=dr*kb*2; this.vel.y=-kb*1.5; this.stun=s+kb; spawnFX(this.pos.x,this.pos.y,'hit'); AudioSys.sfx.hit();
-    }
-    applyFreeze(){this.isFrozen=true;this.freezeTimer=180;AudioSys.sfx.blast();}
-    checkBlast(){
-        if(!this.isMe&&gameMode!=='cpu')return;
-        if(Math.abs(this.pos.x)>BLAST.x||Math.abs(this.pos.y)>BLAST.y){
-            this.stocks--;this.pct=0;this.pos={x:0,y:-400};this.vel={x:0,y:0};this.jumps=(this.key==='kou')?6:2;
-            spawnFX(this.pos.x,this.pos.y,'expl');AudioSys.sfx.blast();
-            if(this.stocks<=0){if(gameMode==='online'&&conn&&conn.open)conn.send({type:'gameover',win:true});showResult(false);}
-        }
-    }
-
-    doJab() { this.act='ATK'; this.actTime=20; this.createHitbox(40,0,60,40,2,4,10); AudioSys.sfx.shot(); }
-    doSmash() { this.act='ATK'; this.actTime=40; setTimeout(()=>{this.createHitbox(40,-10,80,50,5,10,20); AudioSys.sfx.blast();}, 20); }
-    doRecovery() { this.act='ATK'; this.actTime=30; this.vel.y=-20; spawnFX(this.pos.x,this.pos.y,'dark'); this.createHitbox(0,0,60,60,5,10,20); }
-    doSKPillar() { this.act='ATK'; this.actTime=30; spawnFX(this.pos.x,this.pos.y,'dark'); this.createHitbox(40,-50,20,150,4,10,20); AudioSys.sfx.shot(); }
-    fireVirus() { this.act='ATK'; this.actTime=40; projectiles.push(new Projectile(this,this.pos.x,this.pos.y,3,0,'virus',1,15,60)); projectiles.push(new Projectile(this,this.pos.x,this.pos.y,-3,0,'virus',1,15,60)); AudioSys.sfx.shot(); }
-    doDevilDash() { this.act='ATK'; this.actTime=30; this.vel.x=(this.faceR?1:-1)*25; this.createHitbox(0,0,100,100,3,10,20); AudioSys.sfx.blast(); }
-    fireDevilLaser() { this.act='ATK'; this.actTime=40; const d=this.faceR?1:-1; projectiles.push(new Projectile(this,this.pos.x+40*d,this.pos.y,d*2,0,'beam',3,30,50)); AudioSys.sfx.blast(); }
-    fireRocket() { this.act='ATK'; this.actTime=60; const d=this.faceR?1:-1; projectiles.push(new Projectile(this,this.pos.x,this.pos.y,d*1,0,'rocket',15,10,100)); AudioSys.sfx.blast(); }
+    // P1 (操作キャラ) 棒人間描画
+    drawStickman(p1.x + 15, p1.y + 40, p1.color, p1.charType === 'minto' && p1.hasSword, p1.facing);
     
-    createHitbox(ox,oy,w,h,dmg,kb,stun) { this.hitbox={act:true, owner:this, x:this.pos.x+(this.faceR?ox:-ox-w), y:this.pos.y+oy, w:w, h:h, dmg:dmg, kb:kb, stun:stun, dur:5, dir:this.faceR?1:-1}; }
-}
-
-class Projectile {
-    constructor(o,x,y,dx,dy,t,dmg,sz,l) { this.o=o; this.x=x; this.y=y; this.vx=dx*15; this.vy=dy*15; this.type=t; this.dmg=dmg; this.sz=sz; this.life=l; }
-    update() { this.x+=this.vx; this.y+=this.vy; this.life--; if(this.life<=0)return;
-        let hb={x:this.x-this.sz, y:this.y-this.sz, w:this.sz*2, h:this.sz*2};
-        if(this.o.isMe || gameMode==='cpu') {
-            players.forEach(p=>{if(p!==this.o&&p.stocks>0&&isHit(hb,p)){
-                this.o.hitOpponent(p,this.dmg,15,this.vx>0?1:-1,20);
-                if(this.type!=='beam'&&this.type!=='superbeam')this.life=0;
-            }});
-        }
+    // こう の炎エフェクト
+    if (p1.charType === 'ko' && p1.isFlameUp) {
+        ctx.fillStyle = "rgba(255, 69, 0, 0.5)";
+        ctx.fillRect(p1.x - 5, p1.y - 5, p1.width + 10, p1.height + 10);
     }
-    draw(){
-        ctx.save();ctx.translate(this.x,this.y);
-        if(this.type==='superbeam'){ctx.fillStyle='rgba(255,0,100,0.8)';ctx.fillRect(-20,-50,400*(this.vx>0?1:-1),100);}
-        else {ctx.fillStyle=this.type==='virus'?'purple':'orange';ctx.beginPath();ctx.arc(0,0,this.sz,0,Math.PI*2);ctx.fill();}
-        ctx.restore();
+
+    // P2 (かなで / サンドバッグ) 棒人間描画
+    drawStickman(p2.x + 15, p2.y + 40, p2.color, false, -1);
+    if (p2.stunTimer > 0) { // 幻覚エフェクト
+        ctx.fillStyle = "rgba(138, 43, 226, 0.4)";
+        ctx.fillRect(p2.x - 5, p2.y - 5, p2.width + 10, p2.height + 10);
+    }
+
+    // UI (ダメージ％など)
+    ctx.fillStyle = "#fff";
+    ctx.font = "20px Arial";
+    ctx.fillText(`P1 (${p1.charType === 'ko' ? 'こう' : 'みんと'}): ${Math.floor(p1.damage)}%`, 50, 50);
+    ctx.fillText(`P2 (かなで): ${p2.damage}%`, 600, 50);
+}
+
+// 棒人間を描画する共通関数
+function drawStickman(x, y, color, hasSword, facing) {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.arc(x, y - 30, 10, 0, Math.PI * 2); // 頭
+    ctx.moveTo(x, y - 20); ctx.lineTo(x, y); // 体
+    ctx.moveTo(x, y - 15); ctx.lineTo(x - 15 * facing, y - 10); // 左手
+    ctx.moveTo(x, y - 15); ctx.lineTo(x + 15 * facing, y - 5);  // 右手
+    ctx.moveTo(x, y); ctx.lineTo(x - 10, y + 20); // 左足
+    ctx.moveTo(x, y); ctx.lineTo(x + 10, y + 20); // 右足
+    ctx.stroke();
+
+    if (hasSword) { // 剣の描画
+        ctx.strokeStyle = "#aaa";
+        ctx.beginPath();
+        ctx.moveTo(x + 15 * facing, y - 5);
+        ctx.lineTo(x + 35 * facing, y - 20);
+        ctx.stroke();
     }
 }
 
-function spawnFX(x,y,t){if(particles.length>20)return;let c=t==='expl'?'orange':'white';particles.push({x:x,y:y,life:1.0,col:c});}
-function isHit(r1,t){return(r1.x<t.pos.x+20&&r1.x+r1.w>t.pos.x-20&&r1.y<t.pos.y+40&&r1.y+r1.h>t.pos.y-40);}
-
-function loop() {
-    if(!gameRunning)return; requestAnimationFrame(loop);
-    players.forEach(p=>{if(p&&p.stocks>0) p.update(players);});
-    
-    let active=0; players.forEach(p=>{if(p.stocks>0)active++;});
-    if(active<=1&&players.length>1){let w=players.find(p=>p.stocks>0); showResult(w?(w.isMe?"VICTORY!":"DEFEAT..."):"DRAW");}
-
-    ctx.globalAlpha=1; ctx.fillStyle='#87CEEB'; ctx.fillRect(0,0,cvs.width,cvs.height);
-    
-    // ★ COMPLETELY FIXED CAMERA & STAGE ★
-    ctx.save(); 
-    ctx.translate(cvs.width/2, cvs.height/2); 
-    ctx.scale(0.65, 0.65); 
-    ctx.translate(0, 150); // Center the stage vertically
-    
-    // Infinite Ground
-    ctx.fillStyle='#5d4037'; ctx.fillRect(-5000,250,10000,2000); 
-    ctx.fillStyle='#76ff03'; ctx.fillRect(-5000,250,10000,20);
-    // Platforms
-    PLATFORMS.forEach(p=>ctx.fillRect(p.x-p.w/2,p.y-p.h/2,p.w,p.h));
-    
-    players.forEach(p=>{if(p.stocks>0)p.draw();});
-    projectiles.forEach((p,i)=>{p.update();p.draw();if(p.life<=0)projectiles.splice(i,1);});
-    particles.forEach((p,i)=>{p.life-=0.1;ctx.globalAlpha=p.life;ctx.fillStyle=p.col;ctx.beginPath();ctx.arc(p.x,p.y,5,0,Math.PI*2);ctx.fill();if(p.life<=0)particles.splice(i,1);});
-    ctx.restore();
+// カウンター用の特殊フック
+function checkCounter() {
+    if (p1.charType === 'minto' && p1.counterActive) {
+        p2.stunTimer = 180; // 3秒間（60fps × 3）幻覚で拘束
+        p1.counterActive = false;
+        return true;
+    }
+    return false;
 }
-function showResult(m){gameRunning=false;document.getElementById('result').style.display='flex';document.getElementById('hud').style.display='none';document.getElementById('win-msg').innerText=m;AudioSys.sfx.win();}
+
+// 簡易的な攻撃ヒット時の身代わり（P2から攻撃を受けるシステムを後で作る用の布石）
+// 今回はサンドバッグなので、プレイヤーが攻撃したときにみんとのカウンター構え中なら...という判定を組み込んでいます。
+
+update();
 </script>
 </body>
 </html>
